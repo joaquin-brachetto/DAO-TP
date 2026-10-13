@@ -1,0 +1,6 @@
+-- =============================================================================
+-- 02 · INVENTARIO, COMPRAS Y REPOSICIÓN (pohlsi)
+-- Completar con CREATE TABLE IF NOT EXISTS ... siguiendo las convenciones
+-- del README ("Convenciones de la base de datos").
+-- Tablas previstas según docs/modelo_dominio.md: stock, movimiento_stock, orden_compra, detalle_orden_compra, necesidad_reposicion, detalle_necesidad, orden_reposicion, detalle_orden_reposicion.
+-- =============================================================================

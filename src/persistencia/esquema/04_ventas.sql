@@ -1,0 +1,6 @@
+-- =============================================================================
+-- 04 · VENTAS, COBROS Y DEVOLUCIONES (vinchi)
+-- Completar con CREATE TABLE IF NOT EXISTS ... siguiendo las convenciones
+-- del README ("Convenciones de la base de datos").
+-- Tablas previstas según docs/modelo_dominio.md: cliente, venta, detalle_venta, cobro, medio_pago, comprobante, devolucion, detalle_devolucion, caja, movimiento_caja.
+-- =============================================================================

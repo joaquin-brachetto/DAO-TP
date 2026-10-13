@@ -1,0 +1,17 @@
+# Base de datos local (cada uno tiene la suya; se crea sola al ejecutar)
+datos/
+*.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Editores / sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

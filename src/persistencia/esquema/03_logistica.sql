@@ -1,0 +1,6 @@
+-- =============================================================================
+-- 03 · LOGÍSTICA (turco)
+-- Completar con CREATE TABLE IF NOT EXISTS ... siguiendo las convenciones
+-- del README ("Convenciones de la base de datos").
+-- Tablas previstas según docs/modelo_dominio.md: remito, bulto, detalle_bulto, precinto, cambio_estado_bulto, despacho, recepcion, control_bulto.
+-- =============================================================================
