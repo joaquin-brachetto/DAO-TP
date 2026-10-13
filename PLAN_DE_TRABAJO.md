@@ -5,7 +5,7 @@ Este documento divide el TP en 4 partes equivalentes. Cada integrante es dueño 
 **al menos un reporte no trivial** y de **un patrón de diseño**. Así cada uno tiene trabajo
 visible y defendible en la presentación, y nadie queda solo con "lo aburrido".
 
-> Reemplacen `Integrante A/B/C/D` por los nombres reales.
+> **Integrantes:** brache · pohlsi · turco · vinchi
 
 ---
 
@@ -52,14 +52,14 @@ La consigna no fija tecnología. Propuesta por defecto (cámbienla si la cátedr
 
 ```
 src/
-  persistencia/     # conexión, esquema SQL, repositorios        (A)
+  persistencia/     # conexión, esquema SQL, repositorios        (brache)
   dominio/
-    maestros/       # Sucursal, CentroDistribucion, Producto...  (A)
-    inventario/     # Stock, MovimientoStock, OrdenReposicion... (B)
-    logistica/      # Bulto, Remito, Precinto, estados...        (C)
-    ventas/         # Venta, Cobro, Comprobante, Devolucion...   (D)
+    maestros/       # Sucursal, CentroDistribucion, Producto...  (brache)
+    inventario/     # Stock, MovimientoStock, OrdenReposicion... (pohlsi)
+    logistica/      # Bulto, Remito, Precinto, estados...        (turco)
+    ventas/         # Venta, Cobro, Comprobante, Devolucion...   (vinchi)
   servicios/        # lógica de negocio y validaciones (cada uno el suyo)
-  ui/               # ventana principal (A) + pantallas de cada módulo
+  ui/               # ventana principal (brache) + pantallas de cada módulo
   reportes/         # cada uno sus reportes
 tests/
 docs/               # diagrama de clases, DER, diagrama de estados, capturas
@@ -70,8 +70,8 @@ main.py
 
 Para que nadie se bloquee, en la semana 1 se acuerdan estas interfaces aunque devuelvan datos falsos:
 
-1. **Esquema de la BD** (lo arma A con el aporte de todos).
-2. **`StockService`** (lo publica B) – *todo* cambio de stock pasa por acá:
+1. **Esquema de la BD** (lo arma brache con el aporte de todos).
+2. **`StockService`** (lo publica pohlsi) – *todo* cambio de stock pasa por acá:
    - `stock_disponible(ubicacion_id, producto_id) -> int`
    - `ingresar_pendiente(ubicacion_id, producto_id, cant, ref)` (llega mercadería no verificada)
    - `confirmar_disponible(ubicacion_id, producto_id, cant, ref)` (bulto verificado)
@@ -79,13 +79,13 @@ Para que nadie se bloquee, en la semana 1 se acuerdan estas interfaces aunque de
    - `egresar(ubicacion_id, producto_id, cant, ref)` (venta / despacho; valida que alcance)
    - `reingresar(ubicacion_id, producto_id, cant, ref)` (devolución)
    - Cada llamada genera un `MovimientoStock` (sirve para reportes y trazabilidad).
-3. **Repositorios base** (A): `obtener_por_id`, `listar`, `guardar`, etc., que todos reutilizan.
+3. **Repositorios base** (brache): `obtener_por_id`, `listar`, `guardar`, etc., que todos reutilizan.
 
 ---
 
 ## 3. División de tareas
 
-### 👤 Integrante A — Maestros + Infraestructura
+### 👤 brache — Maestros + Infraestructura
 
 **Procesos:** P1, P2 · **Validación:** V4 · **Patrones:** Singleton (conexión a BD) + Repository/DAO
 
@@ -102,11 +102,11 @@ Para que nadie se bloquee, en la semana 1 se acuerdan estas interfaces aunque de
 - [ ] Integrar el diagrama de clases general y el DER en `docs/`.
 - [ ] Tests de sus servicios.
 
-> Nota: A tiene más carga al principio (infraestructura); por eso los reportes los hace en la segunda mitad.
+> Nota: brache tiene más carga al principio (infraestructura); por eso los reportes los hace en la segunda mitad.
 
 ---
 
-### 👤 Integrante B — Inventario, Compras y Reposición
+### 👤 pohlsi — Inventario, Compras y Reposición
 
 **Procesos:** P3 (+ ingreso de compras al CD) · **Validación:** base de V1 y V3 · **Patrón:** Observer
 
@@ -124,7 +124,7 @@ Para que nadie se bloquee, en la semana 1 se acuerdan estas interfaces aunque de
 
 ---
 
-### 👤 Integrante C — Logística: Bultos, Remitos y Precintos
+### 👤 turco — Logística: Bultos, Remitos y Precintos
 
 **Procesos:** P4, P5, P6 · **Validaciones:** V1, V2 · **Patrón:** State
 
@@ -143,7 +143,7 @@ Para que nadie se bloquee, en la semana 1 se acuerdan estas interfaces aunque de
 
 ---
 
-### 👤 Integrante D — Ventas, Cobros, Comprobantes y Devoluciones
+### 👤 vinchi — Ventas, Cobros, Comprobantes y Devoluciones
 
 **Proceso:** P7 · **Validaciones:** V3, V5 · **Patrones:** Strategy (+ Factory opcional)
 
@@ -163,18 +163,18 @@ Para que nadie se bloquee, en la semana 1 se acuerdan estas interfaces aunque de
 
 | Requisito | Responsable |
 |-----------|-------------|
-| P1, P2, V4 | A |
-| P3 (+ compras) | B |
-| P4, P5, P6, V1, V2 | C (usa `StockService` de B) |
-| P7, V3, V5 | D (usa `StockService` de B) |
-| Patrón Singleton + Repository | A |
-| Patrón Observer | B |
-| Patrón State | C |
-| Patrón Strategy (+ Factory) | D |
-| Reportes R1, R2 | A |
-| Reportes R3, R4 | B |
-| Reporte R5 | C |
-| Reporte R6 | D |
+| P1, P2, V4 | brache |
+| P3 (+ compras) | pohlsi |
+| P4, P5, P6, V1, V2 | turco (usa `StockService` de pohlsi) |
+| P7, V3, V5 | vinchi (usa `StockService` de pohlsi) |
+| Patrón Singleton + Repository | brache |
+| Patrón Observer | pohlsi |
+| Patrón State | turco |
+| Patrón Strategy (+ Factory) | vinchi |
+| Reportes R1, R2 | brache |
+| Reportes R3, R4 | pohlsi |
+| Reporte R5 | turco |
+| Reporte R6 | vinchi |
 
 → **6 reportes** y **4–5 patrones** (piden 4 y 2): si alguno no llega o la cátedra no lo
 considera "no trivial", igual se cumple el mínimo.
@@ -182,17 +182,17 @@ considera "no trivial", igual se cumple el mínimo.
 ### Dependencias entre módulos
 
 ```
-        A (infra + maestros)
-        │
-        ▼
-        B (StockService, reposición)
-       ╱ ╲
-      ▼   ▼
-     C     D
- (logística) (ventas)
+          brache (infra + maestros)
+             │
+             ▼
+          pohlsi (StockService, reposición)
+            ╱ ╲
+           ▼   ▼
+       turco   vinchi
+ (logística)   (ventas)
 ```
 
-A y B tienen que publicar su base **primero**; C y D pueden empezar en paralelo con
+brache y pohlsi tienen que publicar su base **primero**; turco y vinchi pueden empezar en paralelo con
 *stubs* (implementaciones falsas) de `StockService` y de los repositorios.
 
 ---
@@ -202,7 +202,7 @@ A y B tienen que publicar su base **primero**; C y D pueden empezar en paralelo 
 | Etapa | Qué se hace | Quién |
 |-------|-------------|-------|
 | **0. Modelado (todos juntos)** | Leer la consigna, diagrama de clases del dominio completo, DER, diagrama de estados del bulto, acordar contratos de la sección 2 | Todos |
-| **1. Base** | Esquema + conexión + repositorios + menú (A). Interfaz de `StockService` (B). C y D modelan sus entidades con stubs | Todos |
+| **1. Base** | Esquema + conexión + repositorios + menú (brache). Interfaz de `StockService` (pohlsi). turco y vinchi modelan sus entidades con stubs | Todos |
 | **2. Procesos** | Cada uno implementa su proceso de punta a punta con su pantalla | Cada uno |
 | **3. Integración** | Flujo completo: compra → reposición → bulto → despacho → recepción → venta → devolución | Todos |
 | **4. Reportes y patrones** | Terminar reportes, revisar que los patrones estén bien aplicados | Cada uno |
