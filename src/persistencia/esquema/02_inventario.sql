@@ -3,4 +3,6 @@
 -- Completar con CREATE TABLE IF NOT EXISTS ... siguiendo las convenciones
 -- del README ("Convenciones de la base de datos").
 -- Tablas previstas según docs/modelo_dominio.md: stock, movimiento_stock, orden_compra, detalle_orden_compra, necesidad_reposicion, detalle_necesidad, orden_reposicion, detalle_orden_reposicion.
+-- El stock mínimo NO va en `stock`: está en la tabla `stock_minimo` de maestros
+-- (se lee con StockMinimoService.esta_en_minimo / minimo).
 -- =============================================================================

@@ -19,6 +19,14 @@ python main.py
 La primera vez se crea la base de datos en `datos/ventas.db` con todas las tablas. Esa carpeta
 no se sube al repositorio: cada uno tiene su propia base local.
 
+Para tener datos con qué probar (sucursales, productos, proveedores, stock mínimo y clientes):
+
+```bash
+python -m src.datos_prueba
+```
+
+También está en el menú **Archivo → Cargar datos de prueba**.
+
 > Si alguien cambia un `CREATE TABLE` que ya existía, hay que **borrar `datos/ventas.db`**
 > para que se vuelva a crear con la estructura nueva.
 
@@ -37,6 +45,7 @@ main.py                     # punto de entrada
 src/
   config.py                 # ruta de la base, título, etc.
   excepciones.py            # errores de negocio comunes (ValidacionError, EntidadDuplicadaError...)
+  datos_prueba.py           # seed: python -m src.datos_prueba
   persistencia/
     conexion.py             # BaseDeDatos (Singleton): conexión, transacciones, consultas
     repositorio_base.py     # RepositorioBase (Repository): guardar / obtener / listar / eliminar
@@ -52,6 +61,9 @@ src/
     ventana_principal.py    # ventana con el menú
     menu.py                 # opciones del menú: acá se enchufa cada pantalla
     componentes.py          # Grilla, Formulario, mensajes de error/confirmación
+    abm.py                  # VentanaABM: ventana genérica de alta/baja/modificación
+    graficos.py             # GraficoBarras para los reportes
+    pantallas/              # pantallas de cada módulo
   reportes/
 tests/
 docs/

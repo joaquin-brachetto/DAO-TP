@@ -89,18 +89,18 @@ Para que nadie se bloquee, en la semana 1 se acuerdan estas interfaces aunque de
 
 **Procesos:** P1, P2 · **Validación:** V4 · **Patrones:** Singleton (conexión a BD) + Repository/DAO
 
-- [ ] Infraestructura: conexión a SQLite (**Singleton**), script de creación del esquema, datos de prueba (seed).
-- [ ] Capa de persistencia genérica (**Repository/DAO**) que reutilizan los demás.
-- [ ] Ventana principal / menú de navegación y componentes de UI reutilizables (grilla, formulario, mensajes de error).
-- [ ] ABM de **Sucursales/Locales** y **Centro de Distribución** (P1).
-- [ ] ABM de **Categorías**.
-- [ ] ABM de **Productos**: código/SKU único, categoría, precio de venta, **costo**, stock mínimo por local (P2).
-- [ ] ABM de **Proveedores**: CUIT único, relación producto–proveedor (P2).
-- [ ] Validación **V4**: no duplicar productos (SKU/código de barras) ni proveedores (CUIT) – a nivel servicio *y* con `UNIQUE` en la BD.
-- [ ] **Reporte R1 – Existencias actuales y productos en/bajo stock mínimo** (por local, filtrable por categoría).
-- [ ] **Reporte R2 – Productos más vendidos y margen de ganancia/pérdida estimado** (precio venta − costo, por período).
+- [x] Infraestructura: conexión a SQLite (**Singleton**), script de creación del esquema, datos de prueba (seed).
+- [x] Capa de persistencia genérica (**Repository/DAO**) que reutilizan los demás.
+- [x] Ventana principal / menú de navegación y componentes de UI reutilizables (grilla, formulario, mensajes de error).
+- [x] ABM de **Sucursales/Locales** y **Centro de Distribución** (P1).
+- [x] ABM de **Categorías**.
+- [x] ABM de **Productos**: código/SKU único, categoría, precio de venta, **costo**, stock mínimo por local (P2).
+- [x] ABM de **Proveedores**: CUIT único, relación producto–proveedor (P2).
+- [x] Validación **V4**: no duplicar productos (SKU/código de barras) ni proveedores (CUIT) – a nivel servicio *y* con `UNIQUE` en la BD.
+- [x] **Reporte R1 – Existencias actuales y productos en/bajo stock mínimo** (por local, filtrable por categoría).
+- [x] **Reporte R2 – Productos más vendidos y margen de ganancia/pérdida estimado** (precio venta − costo, por período).
 - [ ] Integrar el diagrama de clases general y el DER en `docs/`.
-- [ ] Tests de sus servicios.
+- [x] Tests de sus servicios.
 
 > Nota: brache tiene más carga al principio (infraestructura); por eso los reportes los hace en la segunda mitad.
 
@@ -116,6 +116,8 @@ Para que nadie se bloquee, en la semana 1 se acuerdan estas interfaces aunque de
 - [ ] **Necesidades de reposición** de cada local (manual o calculada: stock mínimo − disponible).
 - [ ] **Orden de reposición** (P3): consolida necesidades de uno o varios locales, indica **origen (CD) y destino (local)**, con sus estados (Pendiente → En preparación → Despachada → Completada/Con faltantes).
 - [ ] Patrón **Observer**: cuando el stock de un producto cae bajo el mínimo, se notifica a los suscriptores (alerta en pantalla y/o generación de necesidad de reposición).
+  El mínimo **no** va en la tabla `stock`: lo administra maestros en `stock_minimo` y se consulta con
+  `StockMinimoService.esta_en_minimo(producto_id, ubicacion_id, disponible)` (ver `docs/maestros.md`).
 - [ ] *(Opcional, si sobra tiempo)* **Órdenes de compra sugeridas por faltantes** en el CD.
 - [ ] **Reporte R3 – Movimientos y valorización del inventario** (entradas/salidas por período y stock valorizado a costo por ubicación).
 - [ ] **Reporte R4 – Tiempo promedio de tránsito CD → locales** (despacho vs. recepción, por local y período).

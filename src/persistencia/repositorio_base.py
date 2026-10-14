@@ -90,7 +90,10 @@ class RepositorioBase(Generic[T]):
         return [self._a_entidad(fila) for fila in self.db.consultar(sql)]
 
     def buscar_por(self, **filtros: Any) -> list[T]:
-        """Busca por igualdad de columnas: `repo.buscar_por(categoria_id=3, activo=True)`."""
+        """Busca por igualdad de columnas: `repo.buscar_por(categoria_id=3, activo=True)`.
+
+        Un valor None busca los registros con esa columna vacía (IS NULL).
+        """
         where, parametros = self._armar_where(filtros)
         filas = self.db.consultar(f"SELECT * FROM {self.tabla}{where} ORDER BY {self.orden}", parametros)
         return [self._a_entidad(fila) for fila in filas]
@@ -156,8 +159,12 @@ class RepositorioBase(Generic[T]):
         for columna in filtros:
             if columna not in columnas_validas:
                 raise ValueError(f"La tabla {self.tabla} no tiene la columna '{columna}'.")
-        where = " WHERE " + " AND ".join(f"{columna} = ?" for columna in filtros)
-        return where, list(filtros.values())
+        # `columna = NULL` nunca es verdadero en SQL: para buscar vacíos se usa IS NULL.
+        condiciones = [
+            f"{columna} IS NULL" if valor is None else f"{columna} = ?" for columna, valor in filtros.items()
+        ]
+        parametros = [valor for valor in filtros.values() if valor is not None]
+        return " WHERE " + " AND ".join(condiciones), parametros
 
     def _columnas(self) -> set[str]:
         if self._columnas_tabla is None:

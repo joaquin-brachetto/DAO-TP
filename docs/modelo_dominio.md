@@ -7,7 +7,7 @@ El modelo se divide en 4 paquetes, uno por integrante:
 
 | Paquete | Responsable | Clases principales |
 |---------|-------------|--------------------|
-| Maestros | brache | `Ubicacion`, `Sucursal`, `CentroDistribucion`, `Categoria`, `Producto`, `HistorialPrecio`, `Proveedor`, `ProductoProveedor` |
+| Maestros | brache | `Ubicacion`, `Sucursal`, `CentroDistribucion`, `Categoria`, `Producto`, `HistorialPrecio`, `Proveedor`, `ProductoProveedor`, `StockMinimo` |
 | Inventario y reposición | pohlsi | `Stock`, `MovimientoStock`, `OrdenCompra`, `NecesidadReposicion`, `OrdenReposicion` |
 | Logística | turco | `Remito`, `Bulto`, `Precinto`, `EstadoBulto` (State), `CambioEstadoBulto`, `Despacho`, `Recepcion`, `ControlBulto` |
 | Ventas | vinchi | `Venta`, `DetalleVenta`, `Cobro`, `MedioPago` (Strategy), `Comprobante`, `Devolucion`, `Caja`, `MovimientoCaja`, `Cliente` |
@@ -28,6 +28,7 @@ classDiagram
     class Producto
     class Categoria
     class Proveedor
+    class StockMinimo
 
     class Stock
     class MovimientoStock
@@ -51,6 +52,8 @@ classDiagram
     Ubicacion <|-- CentroDistribucion
     Producto --> Categoria
     Producto "*" -- "*" Proveedor
+    StockMinimo --> Producto
+    StockMinimo --> Ubicacion
 
     Stock --> Producto
     Stock --> Ubicacion
@@ -139,6 +142,11 @@ classDiagram
         -costoPactado: decimal
         -plazoEntregaDias: int
     }
+    class StockMinimo {
+        -cantidadMinima: int
+        +estaEnMinimo(disponible) bool
+        +faltante(disponible) int
+    }
 
     Ubicacion <|-- Sucursal
     Ubicacion <|-- CentroDistribucion
@@ -146,13 +154,17 @@ classDiagram
     Producto "1" *-- "*" HistorialPrecio : historialPrecios
     Producto "1" -- "*" ProductoProveedor
     Proveedor "1" -- "*" ProductoProveedor
+    Producto "1" -- "*" StockMinimo
+    StockMinimo "*" --> "1" Ubicacion
 ```
 
 - **V4 (no duplicados):** `Producto.sku`, `Producto.codigoBarras` y `Proveedor.cuit` son únicos.
 - `Sucursal` y `CentroDistribucion` heredan de `Ubicacion`. En la base de datos van en **una sola
   tabla `ubicacion` con un campo `tipo`**, así el stock se maneja igual en el CD y en los locales.
 - `HistorialPrecio` cubre "administrar precios" y permite saber qué precio y costo tenía un producto en una fecha dada.
-- El **stock mínimo** no está en `Producto` porque depende de cada local: está en `Stock` (paquete de inventario).
+- **`StockMinimo`** es el nivel mínimo de existencia de cada producto **en cada ubicación** (P2): no está en `Producto`
+  porque depende del local. Lo administra maestros (tabla `stock_minimo`) y lo lee inventario para el Observer.
+  Un producto está *en stock mínimo* cuando su disponible llega al mínimo o queda por debajo.
 
 ---
 
@@ -166,9 +178,7 @@ classDiagram
         -cantidadDisponible: int
         -cantidadPendiente: int
         -cantidadMerma: int
-        -stockMinimo: int
         +hayDisponible(cantidad) bool
-        +estaBajoMinimo() bool
     }
     class MovimientoStock {
         -id: int
@@ -278,6 +288,9 @@ Relaciones con otros paquetes (no dibujadas para no ensuciar): `Stock → Produc
 - **Patrón Observer:** `StockService` notifica a los `ObservadorStock` cuando un producto queda bajo el
   mínimo. `GeneradorNecesidades` crea automáticamente una `NecesidadReposicion` (el campo `origen`
   dice si fue manual o automática).
+- **El mínimo lo lee de maestros:** después de cada egreso, `StockService` consulta
+  `StockMinimoService.esta_en_minimo(producto_id, ubicacion_id, disponible)` (o `minimo(...)`) y, si da
+  verdadero, notifica a los observadores. El stock mínimo no se guarda en `Stock`.
 - **Consolidación (P3):** varias `NecesidadReposicion` de un mismo local se juntan en **una**
   `OrdenReposicion` con origen (CD) y destino (local), sumando cantidades por producto.
 

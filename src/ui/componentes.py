@@ -60,17 +60,34 @@ class Grilla(ttk.Frame):
         barra.grid(row=0, column=1, sticky="ns")
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
+        self._tabla.tag_configure("atenuado", foreground="gray50")
 
     def cargar(
         self,
         registros: Iterable[Any],
         valores: Callable[[Any], Sequence[Any]],
         clave: Callable[[Any], Any] = lambda registro: registro.id,
+        atenuar: Callable[[Any], bool] | None = None,
     ) -> None:
-        """Reemplaza el contenido. `valores` arma la fila; `clave` identifica cada registro."""
+        """Reemplaza el contenido. `valores` arma la fila; `clave` identifica cada registro.
+
+        `atenuar` (opcional) indica qué filas se muestran en gris, por ejemplo las dadas de baja.
+        """
         self._tabla.delete(*self._tabla.get_children())
         for registro in registros:
-            self._tabla.insert("", "end", iid=str(clave(registro)), values=list(valores(registro)))
+            etiquetas = ("atenuado",) if atenuar is not None and atenuar(registro) else ()
+            self._tabla.insert(
+                "", "end", iid=str(clave(registro)), values=list(valores(registro)), tags=etiquetas
+            )
+
+    def seleccionar(self, clave: Any) -> None:
+        """Selecciona y muestra la fila con esa clave, si existe."""
+        if self._tabla.exists(str(clave)):
+            self._tabla.selection_set(str(clave))
+            self._tabla.see(str(clave))
+
+    def deseleccionar(self) -> None:
+        self._tabla.selection_remove(*self._tabla.selection())
 
     def seleccionado(self) -> str | None:
         """Clave del registro elegido (como texto), o None si no hay selección."""
@@ -102,19 +119,23 @@ class Formulario(ttk.Frame):
         ("tipo", "Tipo", ["SUCURSAL", "CD"])
     """
 
-    def __init__(self, padre: tk.Misc, campos: Sequence[tuple]) -> None:
+    def __init__(self, padre: tk.Misc, campos: Sequence[tuple], ancho: int = 32) -> None:
         super().__init__(padre)
         self._variables: dict[str, tk.StringVar] = {}
+        self._entradas: dict[str, ttk.Entry] = {}
         for fila, campo in enumerate(campos):
             nombre, etiqueta, *opciones = campo
             variable = tk.StringVar()
             ttk.Label(self, text=f"{etiqueta}:").grid(row=fila, column=0, sticky="w", padx=(0, 8), pady=2)
             if opciones:
-                entrada = ttk.Combobox(self, textvariable=variable, values=list(opciones[0]), state="readonly")
+                entrada = ttk.Combobox(
+                    self, textvariable=variable, values=list(opciones[0]), state="readonly", width=ancho - 3
+                )
             else:
-                entrada = ttk.Entry(self, textvariable=variable)
+                entrada = ttk.Entry(self, textvariable=variable, width=ancho)
             entrada.grid(row=fila, column=1, sticky="ew", pady=2)
             self._variables[nombre] = variable
+            self._entradas[nombre] = entrada
         self.columnconfigure(1, weight=1)
 
     def valores(self) -> dict[str, str]:
@@ -128,3 +149,22 @@ class Formulario(ttk.Frame):
     def limpiar(self) -> None:
         for variable in self._variables.values():
             variable.set("")
+
+    def actualizar_opciones(self, nombre: str, opciones: Sequence[str]) -> None:
+        """Cambia la lista de un campo con opciones (por ejemplo, al agregar una categoría)."""
+        self._entradas[nombre].configure(values=list(opciones))
+
+    def habilitar(self, nombre: str, habilitado: bool = True) -> None:
+        """Habilita o deshabilita un campo. Al deshabilitarlo se borra su valor."""
+        entrada = self._entradas[nombre]
+        if isinstance(entrada, ttk.Combobox):
+            entrada.configure(state="readonly" if habilitado else "disabled")
+        else:
+            entrada.configure(state="normal" if habilitado else "disabled")
+        if not habilitado:
+            self._variables[nombre].set("")
+
+    def al_cambiar(self, nombre: str, funcion: Callable[[str], None]) -> None:
+        """Llama a `funcion(valor)` cada vez que cambia el valor de un campo."""
+        variable = self._variables[nombre]
+        variable.trace_add("write", lambda *_: funcion(variable.get()))
