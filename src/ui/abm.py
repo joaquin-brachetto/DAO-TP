@@ -50,7 +50,11 @@ def a_real(texto: str, campo: str, opcional: bool = False) -> float | None:
 
 
 def formato_dinero(valor: Decimal | None) -> str:
-    return "" if valor is None else f"$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    """Decimal('-1234.5') -> '-$ 1.234,50'."""
+    if valor is None:
+        return ""
+    texto = f"{abs(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{'-' if valor < 0 else ''}$ {texto}"
 
 
 def formato_porcentaje(valor: Decimal | None) -> str:

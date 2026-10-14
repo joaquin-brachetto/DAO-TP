@@ -16,6 +16,7 @@ from collections.abc import Callable
 from tkinter import Misc
 
 from src.ui.pantallas.maestros import abrir_categorias, abrir_productos, abrir_proveedores, abrir_ubicaciones
+from src.ui.pantallas.reportes_maestros import abrir_existencias, abrir_productos_vendidos
 from src.ui.pantallas.ventas import abrir_caja, abrir_devoluciones, abrir_reporte_ventas, abrir_ventas
 
 AbrirPantalla = Callable[[Misc], None]
@@ -50,11 +51,11 @@ OPCIONES_MENU: dict[str, list[tuple[str, AbrirPantalla | None]]] = {
     ],
     # --- cada uno el suyo ---
     "Reportes": [
-        ("Existencias y stock mínimo", None),                 # brache
-        ("Productos más vendidos y margen", None),            # brache
-        ("Movimientos y valorización del inventario", None),  # pohlsi
-        ("Tiempo promedio de tránsito CD → locales", None),   # pohlsi
-        ("Bultos rechazados y mermas", None),                 # turco
+        ("Existencias y stock mínimo", abrir_existencias),                    # brache
+        ("Productos más vendidos y margen", abrir_productos_vendidos),        # brache
+        ("Movimientos y valorización del inventario", None),                  # pohlsi
+        ("Tiempo promedio de tránsito CD → locales", None),                   # pohlsi
+        ("Bultos rechazados y mermas", None),                                 # turco
         ("Ventas por período, local y medio de pago", abrir_reporte_ventas),  # vinchi
     ],
 }
