@@ -10,13 +10,20 @@ from src.dominio.maestros.modelos import (
     Producto,
     ProductoProveedor,
     Proveedor,
+    StockMinimo,
     Sucursal,
     TipoUbicacion,
     Ubicacion,
     formatear_cuit,
 )
 from src.excepciones import ValidacionError
-from src.servicios.maestros_service import CategoriaService, ProductoService, ProveedorService, UbicacionService
+from src.servicios.maestros_service import (
+    CategoriaService,
+    ProductoService,
+    ProveedorService,
+    StockMinimoService,
+    UbicacionService,
+)
 from src.ui.abm import (
     VentanaABM,
     a_decimal,
@@ -173,8 +180,17 @@ class PantallaProductos(VentanaABM):
         self.servicio = ProductoService()
         self.categorias: dict[str, int] = {}
         super().__init__(padre)
-        ttk.Button(self.acciones_extra, text="Historial de precios", command=self._ver_historial).pack(side="left")
-        ttk.Button(self.acciones_extra, text="Proveedores…", command=self._ver_proveedores).pack(side="left", padx=4)
+        extra = self.acciones_extra
+        extra.columnconfigure((0, 1), weight=1, uniform="extra")
+        ttk.Button(extra, text="Historial de precios", command=self._ver_historial).grid(
+            row=0, column=0, sticky="ew", padx=(0, 2)
+        )
+        ttk.Button(extra, text="Proveedores…", command=self._ver_proveedores).grid(
+            row=0, column=1, sticky="ew", padx=(2, 0)
+        )
+        ttk.Button(extra, text="Stock mínimo…", command=self._ver_stock_minimo).grid(
+            row=1, column=0, sticky="ew", padx=(0, 2), pady=(4, 0)
+        )
 
     def _cargar_categorias(self) -> None:
         self.categorias = {c.nombre: c.id for c in CategoriaService().listar()}
@@ -256,6 +272,94 @@ class PantallaProductos(VentanaABM):
             mostrar_error("Primero elegí un producto de la lista.", padre=self)
             return
         VentanaProveedoresDeProducto(self, self.servicio, self.actual)
+
+
+    def _ver_stock_minimo(self) -> None:
+        if self.actual is None:
+            mostrar_error("Primero elegí un producto de la lista.", padre=self)
+            return
+        VentanaStockMinimo(self, self.actual)
+
+
+class VentanaStockMinimo(tk.Toplevel):
+    """Stock mínimo del producto en cada sucursal y en el CD (P2)."""
+
+    def __init__(self, padre: tk.Misc, producto: Producto) -> None:
+        super().__init__(padre)
+        self.servicio = StockMinimoService()
+        self.producto = producto
+        self.title(f"Stock mínimo – {producto.sku}")
+        self.geometry("620x420")
+        self.ubicaciones = {u.id: u for u in UbicacionService().listar(incluir_inactivas=True)}
+
+        marco = ttk.Frame(self, padding=12)
+        marco.pack(fill="both", expand=True)
+        ttk.Label(marco, text=f"{producto.sku} – {producto.nombre}", font=("TkDefaultFont", 11, "bold")).pack(anchor="w")
+        ttk.Label(
+            marco,
+            text="Cuando el stock disponible llega a este valor, el producto aparece como «en stock mínimo».",
+            foreground="gray30",
+            wraplength=590,
+        ).pack(anchor="w")
+        self.grilla = Grilla(marco, [("ubicacion", "Ubicación", 280), ("tipo", "Tipo", 150), ("minimo", "Mínimo", 90)], alto=8)
+        self.grilla.pack(fill="both", expand=True, pady=8)
+        self.grilla.al_seleccionar(self._al_seleccionar)
+
+        self.opciones = {
+            f"{u.nombre} ({u.codigo})": u.id for u in self.ubicaciones.values() if u.activa
+        }
+        self.formulario = Formulario(marco, [("ubicacion", "Ubicación", list(self.opciones)), ("minimo", "Cantidad mínima")])
+        self.formulario.pack(fill="x")
+        botones = ttk.Frame(marco)
+        botones.pack(fill="x", pady=(8, 0))
+        ttk.Button(botones, text="Guardar", command=self._guardar).pack(side="left")
+        ttk.Button(botones, text="Quitar", command=self._quitar).pack(side="left", padx=4)
+        self._refrescar()
+
+    def _etiqueta(self, ubicacion_id: int) -> str:
+        u = self.ubicaciones[ubicacion_id]
+        return f"{u.nombre} ({u.codigo})"
+
+    def _refrescar(self) -> None:
+        self.minimos = {str(m.ubicacion_id): m for m in self.servicio.de_producto(self.producto.id)}
+        self.grilla.cargar(
+            self.minimos.values(),
+            lambda m: (
+                self._etiqueta(m.ubicacion_id),
+                "Centro de Distribución" if self.ubicaciones[m.ubicacion_id].es_centro_distribucion() else "Sucursal",
+                m.cantidad_minima,
+            ),
+            clave=lambda m: m.ubicacion_id,
+            atenuar=lambda m: not self.ubicaciones[m.ubicacion_id].activa,
+        )
+
+    def _al_seleccionar(self, clave: str) -> None:
+        minimo = self.minimos[clave]
+        self.formulario.cargar({"ubicacion": self._etiqueta(minimo.ubicacion_id), "minimo": minimo.cantidad_minima})
+
+    def _guardar(self) -> None:
+        def guardar() -> StockMinimo:
+            v = self.formulario.valores()
+            if v["ubicacion"] not in self.opciones:
+                raise ValidacionError("Elegí una ubicación activa.")
+            return self.servicio.definir(
+                StockMinimo(self.producto.id, self.opciones[v["ubicacion"]], a_entero(v["minimo"], "Cantidad mínima"))
+            )
+
+        minimo = ejecutar_con_manejo_de_errores(guardar, self)
+        if minimo is not None:
+            self._refrescar()
+            self.grilla.seleccionar(minimo.ubicacion_id)
+
+    def _quitar(self) -> None:
+        clave = self.grilla.seleccionado()
+        if clave is None:
+            mostrar_error("Elegí una ubicación de la lista.", padre=self)
+            return
+        if confirmar(f"¿Quitar el stock mínimo en {self._etiqueta(int(clave))}?", padre=self):
+            if ejecutar_con_manejo_de_errores(lambda: self.servicio.quitar(self.producto.id, int(clave)) or True, self):
+                self.formulario.limpiar()
+                self._refrescar()
 
 
 class VentanaHistorialPrecios(tk.Toplevel):

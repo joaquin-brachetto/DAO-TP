@@ -9,6 +9,7 @@ from src.dominio.maestros.modelos import (
     Producto,
     ProductoProveedor,
     Proveedor,
+    StockMinimo,
     Sucursal,
     Ubicacion,
     formatear_cuit,
@@ -21,6 +22,7 @@ from src.persistencia.repositorio_maestros import (
     ProductoProveedorRepositorio,
     ProductoRepositorio,
     ProveedorRepositorio,
+    StockMinimoRepositorio,
     UbicacionRepositorio,
 )
 
@@ -199,6 +201,54 @@ class ProductoService:
                 fecha_desde=momento,
             )
         )
+
+
+# --- P2: niveles mínimos de existencia ----------------------------------------------------------
+
+
+class StockMinimoService:
+    """Administra el stock mínimo de cada producto por ubicación.
+
+    Inventario (pohlsi) lo consulta desde su Observer con `minimo()` o
+    `esta_en_minimo()` cada vez que cambia el stock disponible.
+    """
+
+    def __init__(self, db: BaseDeDatos | None = None) -> None:
+        self.db = db or BaseDeDatos()
+        self.repo = StockMinimoRepositorio(self.db)
+        self.productos = ProductoRepositorio(self.db)
+        self.ubicaciones = UbicacionRepositorio(self.db)
+
+    def definir(self, minimo: StockMinimo) -> StockMinimo:
+        minimo.validar()
+        producto = self.productos.obtener(minimo.producto_id)
+        if not producto.activo:
+            raise ValidacionError(f"El producto {producto.sku} está dado de baja.")
+        ubicacion = self.ubicaciones.obtener(minimo.ubicacion_id)
+        if not ubicacion.activa:
+            raise ValidacionError(f"La ubicación {ubicacion.nombre} está dada de baja.")
+        return self.repo.guardar(minimo)
+
+    def quitar(self, producto_id: int, ubicacion_id: int) -> None:
+        if not self.repo.eliminar(producto_id, ubicacion_id):
+            raise ValidacionError("Ese producto no tenía un stock mínimo definido en esa ubicación.")
+
+    def de_producto(self, producto_id: int) -> list[StockMinimo]:
+        return self.repo.de_producto(producto_id)
+
+    def de_ubicacion(self, ubicacion_id: int) -> dict[int, int]:
+        """{producto_id: cantidad_minima} de una ubicación."""
+        return {m.producto_id: m.cantidad_minima for m in self.repo.de_ubicacion(ubicacion_id)}
+
+    def minimo(self, producto_id: int, ubicacion_id: int) -> int:
+        """Cantidad mínima definida; 0 si no hay ninguna."""
+        minimo = self.repo.obtener(producto_id, ubicacion_id)
+        return minimo.cantidad_minima if minimo else 0
+
+    def esta_en_minimo(self, producto_id: int, ubicacion_id: int, disponible: int) -> bool:
+        """¿El disponible llegó al mínimo o está por debajo? (False si no hay mínimo definido)."""
+        minimo = self.repo.obtener(producto_id, ubicacion_id)
+        return minimo is not None and minimo.esta_en_minimo(disponible)
 
 
 # --- P2: proveedores ----------------------------------------------------------------------------

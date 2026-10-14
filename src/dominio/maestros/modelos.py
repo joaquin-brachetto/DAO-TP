@@ -169,6 +169,30 @@ class HistorialPrecio:
         return self.fecha_hasta is None
 
 
+@dataclass
+class StockMinimo:
+    """Nivel mínimo de existencia de un producto en una ubicación (P2).
+
+    Se considera que el producto está "en stock mínimo" cuando el disponible
+    llega al mínimo o queda por debajo.
+    """
+
+    producto_id: int
+    ubicacion_id: int
+    cantidad_minima: int
+
+    def validar(self) -> None:
+        if not isinstance(self.cantidad_minima, int) or self.cantidad_minima < 0:
+            raise ValidacionError("El stock mínimo debe ser un número entero mayor o igual a cero.")
+
+    def esta_en_minimo(self, disponible: int) -> bool:
+        return self.cantidad_minima > 0 and disponible <= self.cantidad_minima
+
+    def faltante(self, disponible: int) -> int:
+        """Unidades que faltan para volver a estar por encima del mínimo (0 si no falta nada)."""
+        return max(self.cantidad_minima - disponible, 0)
+
+
 # --- Proveedores (P2) ---------------------------------------------------------------------
 
 

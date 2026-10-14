@@ -9,6 +9,7 @@ from src.dominio.maestros.modelos import (
     Producto,
     ProductoProveedor,
     Proveedor,
+    StockMinimo,
     Sucursal,
     cuit_es_valido,
     formatear_cuit,
@@ -24,6 +25,7 @@ from src.servicios.maestros_service import (
     CategoriaService,
     ProductoService,
     ProveedorService,
+    StockMinimoService,
     UbicacionService,
 )
 from tests.utilidades import TestConBaseEnMemoria
@@ -292,3 +294,52 @@ class TestProveedores(TestConBaseEnMemoria):
         self.assertEqual(self.servicio.listar(), [])
         self.servicio.reactivar(proveedor.id)
         self.assertEqual(len(self.servicio.listar()), 1)
+
+
+class TestStockMinimo(TestConBaseEnMemoria):
+    def setUp(self):
+        super().setUp()
+        self.servicio = StockMinimoService()
+        ubicaciones = UbicacionService()
+        self.sucursal = ubicaciones.guardar(Sucursal(codigo="SUC01", nombre="Centro", punto_venta=1))
+        self.cd = ubicaciones.guardar(CentroDistribucion(codigo="CD", nombre="Central"))
+        categoria = CategoriaService().guardar(Categoria("Bebidas"))
+        self.productos = ProductoService()
+        self.agua = self.productos.guardar(Producto("AGU", "Agua", categoria.id, Decimal("1"), Decimal("2")))
+
+    def test_definir_reemplazar_y_quitar(self):
+        self.servicio.definir(StockMinimo(self.agua.id, self.sucursal.id, 10))
+        self.servicio.definir(StockMinimo(self.agua.id, self.cd.id, 60))
+        self.servicio.definir(StockMinimo(self.agua.id, self.sucursal.id, 12))
+        self.assertEqual(self.servicio.minimo(self.agua.id, self.sucursal.id), 12)
+        self.assertEqual(len(self.servicio.de_producto(self.agua.id)), 2)
+        self.assertEqual(self.servicio.de_ubicacion(self.cd.id), {self.agua.id: 60})
+        self.servicio.quitar(self.agua.id, self.sucursal.id)
+        self.assertEqual(self.servicio.minimo(self.agua.id, self.sucursal.id), 0)
+        with self.assertRaises(ValidacionError):
+            self.servicio.quitar(self.agua.id, self.sucursal.id)
+
+    def test_en_minimo_incluye_llegar_justo_al_minimo(self):
+        self.servicio.definir(StockMinimo(self.agua.id, self.sucursal.id, 10))
+        self.assertTrue(self.servicio.esta_en_minimo(self.agua.id, self.sucursal.id, 10))
+        self.assertTrue(self.servicio.esta_en_minimo(self.agua.id, self.sucursal.id, 3))
+        self.assertFalse(self.servicio.esta_en_minimo(self.agua.id, self.sucursal.id, 11))
+        self.assertFalse(self.servicio.esta_en_minimo(self.agua.id, self.cd.id, 0))  # sin mínimo definido
+
+    def test_faltante(self):
+        minimo = StockMinimo(self.agua.id, self.sucursal.id, 10)
+        self.assertEqual(minimo.faltante(4), 6)
+        self.assertEqual(minimo.faltante(15), 0)
+        self.assertFalse(StockMinimo(self.agua.id, self.sucursal.id, 0).esta_en_minimo(0))
+
+    def test_validaciones(self):
+        with self.assertRaises(ValidacionError):
+            self.servicio.definir(StockMinimo(self.agua.id, self.sucursal.id, -1))
+        with self.assertRaises(EntidadNoEncontradaError):
+            self.servicio.definir(StockMinimo(999, self.sucursal.id, 5))
+        UbicacionService().dar_de_baja(self.sucursal.id)
+        with self.assertRaises(ValidacionError):
+            self.servicio.definir(StockMinimo(self.agua.id, self.sucursal.id, 5))
+        self.productos.dar_de_baja(self.agua.id)
+        with self.assertRaises(ValidacionError):
+            self.servicio.definir(StockMinimo(self.agua.id, self.cd.id, 5))

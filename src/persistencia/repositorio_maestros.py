@@ -10,6 +10,7 @@ from src.dominio.maestros.modelos import (
     Producto,
     ProductoProveedor,
     Proveedor,
+    StockMinimo,
     Sucursal,
     TipoUbicacion,
     Ubicacion,
@@ -165,4 +166,47 @@ class ProductoProveedorRepositorio:
             "WHERE pp.proveedor_id = ? ORDER BY p.nombre",
             (proveedor_id,),
         )
+        return [self._a_entidad(fila) for fila in filas]
+
+
+class StockMinimoRepositorio:
+    """Mínimo de cada producto en cada ubicación. La clave es el par (producto, ubicación)."""
+
+    def __init__(self, db: BaseDeDatos | None = None) -> None:
+        self.db = db or BaseDeDatos()
+
+    def _a_entidad(self, fila) -> StockMinimo:
+        return StockMinimo(fila["producto_id"], fila["ubicacion_id"], fila["cantidad_minima"])
+
+    def guardar(self, minimo: StockMinimo) -> StockMinimo:
+        """Define el mínimo, o lo reemplaza si ya había uno para ese producto y ubicación."""
+        self.db.ejecutar(
+            "INSERT INTO stock_minimo (producto_id, ubicacion_id, cantidad_minima) VALUES (?, ?, ?) "
+            "ON CONFLICT (producto_id, ubicacion_id) DO UPDATE SET cantidad_minima = excluded.cantidad_minima",
+            (minimo.producto_id, minimo.ubicacion_id, minimo.cantidad_minima),
+        )
+        return minimo
+
+    def eliminar(self, producto_id: int, ubicacion_id: int) -> bool:
+        cursor = self.db.ejecutar(
+            "DELETE FROM stock_minimo WHERE producto_id = ? AND ubicacion_id = ?", (producto_id, ubicacion_id)
+        )
+        return cursor.rowcount > 0
+
+    def obtener(self, producto_id: int, ubicacion_id: int) -> StockMinimo | None:
+        fila = self.db.consultar_uno(
+            "SELECT * FROM stock_minimo WHERE producto_id = ? AND ubicacion_id = ?", (producto_id, ubicacion_id)
+        )
+        return self._a_entidad(fila) if fila else None
+
+    def de_producto(self, producto_id: int) -> list[StockMinimo]:
+        filas = self.db.consultar(
+            "SELECT sm.* FROM stock_minimo sm JOIN ubicacion u ON u.id = sm.ubicacion_id "
+            "WHERE sm.producto_id = ? ORDER BY u.tipo, u.nombre",
+            (producto_id,),
+        )
+        return [self._a_entidad(fila) for fila in filas]
+
+    def de_ubicacion(self, ubicacion_id: int) -> list[StockMinimo]:
+        filas = self.db.consultar("SELECT * FROM stock_minimo WHERE ubicacion_id = ?", (ubicacion_id,))
         return [self._a_entidad(fila) for fila in filas]

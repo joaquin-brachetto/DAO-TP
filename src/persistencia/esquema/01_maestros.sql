@@ -76,3 +76,15 @@ CREATE TABLE IF NOT EXISTS producto_proveedor (
     plazo_entrega_dias   INTEGER CHECK (plazo_entrega_dias >= 0),
     PRIMARY KEY (producto_id, proveedor_id)
 );
+
+-- Nivel mínimo de existencia de cada producto en cada ubicación (P2).
+-- Lo administra maestros; inventario (pohlsi) lo lee para avisar cuando el stock
+-- disponible llega al mínimo (patrón Observer). Sin registro = sin mínimo definido.
+CREATE TABLE IF NOT EXISTS stock_minimo (
+    producto_id      INTEGER NOT NULL REFERENCES producto (id),
+    ubicacion_id     INTEGER NOT NULL REFERENCES ubicacion (id),
+    cantidad_minima  INTEGER NOT NULL CHECK (cantidad_minima >= 0),
+    PRIMARY KEY (producto_id, ubicacion_id)
+);
+
+CREATE INDEX IF NOT EXISTS ix_stock_minimo_ubicacion ON stock_minimo (ubicacion_id);
