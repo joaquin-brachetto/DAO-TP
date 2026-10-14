@@ -4,8 +4,9 @@ import tkinter as tk
 from tkinter import ttk
 
 from src import config
+from src.datos_prueba import cargar_datos_de_prueba
 from src.persistencia.conexion import BaseDeDatos
-from src.ui.componentes import mostrar_info
+from src.ui.componentes import confirmar, ejecutar_con_manejo_de_errores, mostrar_info
 from src.ui.menu import OPCIONES_MENU, AbrirPantalla
 
 
@@ -22,6 +23,8 @@ class VentanaPrincipal(tk.Tk):
         barra = tk.Menu(self)
 
         archivo = tk.Menu(barra, tearoff=False)
+        archivo.add_command(label="Cargar datos de prueba", command=self._cargar_datos_de_prueba)
+        archivo.add_separator()
         archivo.add_command(label="Salir", command=self.destroy)
         barra.add_cascade(label="Archivo", menu=archivo)
 
@@ -37,6 +40,14 @@ class VentanaPrincipal(tk.Tk):
         if abrir is None:
             return lambda: mostrar_info(f"«{etiqueta}» todavía está en construcción.", "En construcción", self)
         return lambda: abrir(self)
+
+    def _cargar_datos_de_prueba(self) -> None:
+        if not confirmar("¿Cargar sucursales, productos, proveedores y clientes de ejemplo?", padre=self):
+            return
+        cantidades = ejecutar_con_manejo_de_errores(cargar_datos_de_prueba, self)
+        if cantidades is not None:
+            detalle = "\n".join(f"{cantidad} {tipo}" for tipo, cantidad in cantidades.items())
+            mostrar_info(f"Se cargaron los datos de prueba:\n\n{detalle}", "Datos de prueba", self)
 
     def _armar_contenido(self) -> None:
         contenido = ttk.Frame(self, padding=32)
