@@ -15,6 +15,7 @@ Cada integrante toca solo el bloque de su módulo, así no hay conflictos.
 from collections.abc import Callable
 from tkinter import Misc
 
+from src.ui.pantallas.maestros import abrir_categorias, abrir_productos, abrir_proveedores, abrir_ubicaciones
 from src.ui.pantallas.ventas import abrir_caja, abrir_devoluciones, abrir_reporte_ventas, abrir_ventas
 
 AbrirPantalla = Callable[[Misc], None]
@@ -22,10 +23,10 @@ AbrirPantalla = Callable[[Misc], None]
 OPCIONES_MENU: dict[str, list[tuple[str, AbrirPantalla | None]]] = {
     # --- brache ---
     "Maestros": [
-        ("Sucursales y Centro de Distribución", None),
-        ("Categorías", None),
-        ("Productos y precios", None),
-        ("Proveedores", None),
+        ("Sucursales y Centro de Distribución", abrir_ubicaciones),
+        ("Categorías", abrir_categorias),
+        ("Productos y precios", abrir_productos),
+        ("Proveedores", abrir_proveedores),
     ],
     # --- pohlsi ---
     "Inventario": [

@@ -90,17 +90,17 @@ Para que nadie se bloquee, en la semana 1 se acuerdan estas interfaces aunque de
 **Procesos:** P1, P2 · **Validación:** V4 · **Patrones:** Singleton (conexión a BD) + Repository/DAO
 
 - [ ] Infraestructura: conexión a SQLite (**Singleton**), script de creación del esquema, datos de prueba (seed).
-- [ ] Capa de persistencia genérica (**Repository/DAO**) que reutilizan los demás.
-- [ ] Ventana principal / menú de navegación y componentes de UI reutilizables (grilla, formulario, mensajes de error).
-- [ ] ABM de **Sucursales/Locales** y **Centro de Distribución** (P1).
-- [ ] ABM de **Categorías**.
+- [x] Capa de persistencia genérica (**Repository/DAO**) que reutilizan los demás.
+- [x] Ventana principal / menú de navegación y componentes de UI reutilizables (grilla, formulario, mensajes de error).
+- [x] ABM de **Sucursales/Locales** y **Centro de Distribución** (P1).
+- [x] ABM de **Categorías**.
 - [ ] ABM de **Productos**: código/SKU único, categoría, precio de venta, **costo**, stock mínimo por local (P2).
-- [ ] ABM de **Proveedores**: CUIT único, relación producto–proveedor (P2).
-- [ ] Validación **V4**: no duplicar productos (SKU/código de barras) ni proveedores (CUIT) – a nivel servicio *y* con `UNIQUE` en la BD.
+- [x] ABM de **Proveedores**: CUIT único, relación producto–proveedor (P2).
+- [x] Validación **V4**: no duplicar productos (SKU/código de barras) ni proveedores (CUIT) – a nivel servicio *y* con `UNIQUE` en la BD.
 - [ ] **Reporte R1 – Existencias actuales y productos en/bajo stock mínimo** (por local, filtrable por categoría).
 - [ ] **Reporte R2 – Productos más vendidos y margen de ganancia/pérdida estimado** (precio venta − costo, por período).
 - [ ] Integrar el diagrama de clases general y el DER en `docs/`.
-- [ ] Tests de sus servicios.
+- [x] Tests de sus servicios.
 
 > Nota: brache tiene más carga al principio (infraestructura); por eso los reportes los hace en la segunda mitad.
 
