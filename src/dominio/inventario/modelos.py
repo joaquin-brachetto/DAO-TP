@@ -123,6 +123,23 @@ class EstadoOrdenReposicion(StrEnum):
     CERRADA_CON_FALTANTES = "CERRADA_CON_FALTANTES"
 
 
+NOMBRES_ESTADO = {
+    "PENDIENTE": "Pendiente",
+    "RECIBIDA": "Recibida",
+    "ANULADA": "Anulada",
+    "CONSOLIDADA": "Consolidada",
+    "EN_PREPARACION": "En preparación",
+    "DESPACHADA": "Despachada",
+    "CERRADA_COMPLETA": "Cerrada completa",
+    "CERRADA_CON_FALTANTES": "Cerrada con faltantes",
+}
+
+
+def nombre_estado(estado: StrEnum | str) -> str:
+    """Estado para mostrar al usuario: EN_PREPARACION -> «En preparación»."""
+    return NOMBRES_ESTADO.get(str(estado), str(estado))
+
+
 @dataclass
 class DetalleNecesidad:
     producto_id: int

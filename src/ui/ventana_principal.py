@@ -6,6 +6,8 @@ from tkinter import ttk
 from src import config
 from src.datos_prueba import cargar_datos_de_prueba
 from src.persistencia.conexion import BaseDeDatos
+from src.servicios.inventario_app import crear_stock_service, describir_alerta
+from src.servicios.observadores_stock import AlertaStock
 from src.ui.componentes import confirmar, ejecutar_con_manejo_de_errores, mostrar_info
 from src.ui.menu import OPCIONES_MENU, AbrirPantalla
 
@@ -16,6 +18,9 @@ class VentanaPrincipal(tk.Tk):
         self.title(config.TITULO_APP)
         self.geometry("900x600")
         self.minsize(640, 400)
+        # Inventario (pohlsi): un único StockService para toda la aplicación. Las pantallas lo toman
+        # como `padre.stock_service`; sus observadores avisan el stock mínimo en la barra de abajo.
+        self.stock_service, self.alertas_stock = crear_stock_service(al_alertar=self._avisar_stock_minimo)
         self._armar_menu()
         self._armar_contenido()
 
@@ -60,3 +65,10 @@ class VentanaPrincipal(tk.Tk):
 
         estado = ttk.Label(self, text=f"Base de datos: {BaseDeDatos().ruta}", relief="sunken", padding=(8, 2))
         estado.pack(side="bottom", fill="x")
+        self._aviso_stock = ttk.Label(self, text="", foreground="#d03b3b", padding=(8, 2))
+        self._aviso_stock.pack(side="bottom", fill="x")
+
+    def _avisar_stock_minimo(self, alerta: AlertaStock) -> None:
+        """Observer de inventario: muestra la última alerta de stock mínimo en la barra de estado."""
+        if hasattr(self, "_aviso_stock"):
+            self._aviso_stock.configure(text=describir_alerta(alerta))

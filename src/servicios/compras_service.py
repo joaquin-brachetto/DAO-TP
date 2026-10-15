@@ -11,10 +11,17 @@ sola transacción: si algo falla, no queda nada a medias.
 """
 
 from collections.abc import Iterable
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
-from src.dominio.inventario.modelos import DetalleOrdenCompra, EstadoOrdenCompra, OrdenCompra, Referencia
+from src.dominio.inventario.modelos import (
+    DetalleOrdenCompra,
+    EstadoOrdenCompra,
+    OrdenCompra,
+    Referencia,
+    nombre_estado,
+)
 from src.excepciones import EntidadNoEncontradaError, ValidacionError
 from src.persistencia.conexion import BaseDeDatos
 from src.persistencia.repositorio_inventario import (
@@ -24,6 +31,17 @@ from src.persistencia.repositorio_inventario import (
 )
 from src.servicios.stock_service import StockService
 from src.servicios.validaciones_inventario import decimal_no_negativo, entero_positivo
+
+
+@dataclass
+class SugerenciaCompra:
+    """Lo que conviene comprar para reponer el CD: renglones por proveedor y productos sin proveedor."""
+
+    por_proveedor: dict[int, list[tuple[int, int, Decimal]]] = field(default_factory=dict)
+    sin_proveedor: list[tuple[int, int]] = field(default_factory=list)
+
+    def vacia(self) -> bool:
+        return not self.por_proveedor and not self.sin_proveedor
 
 
 class ComprasService:
@@ -46,6 +64,34 @@ class ComprasService:
         for orden in ordenes:
             orden.detalles = self._detalles.de_orden(orden.id)
         return ordenes
+
+    def sugerir_compras(self, cd_id: int | None = None) -> SugerenciaCompra:
+        """Faltantes del CD agrupados por proveedor (opcional del plan: compras sugeridas por faltantes).
+
+        Para cada producto en o bajo su stock mínimo en el CD:
+            cantidad = mínimo − disponible − lo ya pedido en órdenes de compra pendientes
+        Se le pide al proveedor activo con menor costo pactado. No crea nada: la orden la confirma el usuario.
+        """
+        if cd_id is None:
+            centro = self._maestros.centro_distribucion_activo()
+            if centro is None:
+                raise ValidacionError("No hay un Centro de Distribución activo.")
+            cd_id = centro["id"]
+        sugerencia = SugerenciaCompra()
+        for fila in self._maestros.faltantes_de_compra(cd_id):
+            if fila["disponible"] > fila["cantidad_minima"]:
+                continue
+            cantidad = fila["cantidad_minima"] - fila["disponible"] - fila["pedido"]
+            if cantidad <= 0:
+                continue
+            proveedor = self._maestros.proveedor_mas_barato(fila["producto_id"])
+            if proveedor is None:
+                sugerencia.sin_proveedor.append((fila["producto_id"], cantidad))
+                continue
+            sugerencia.por_proveedor.setdefault(proveedor["proveedor_id"], []).append(
+                (fila["producto_id"], cantidad, Decimal(proveedor["costo"]))
+            )
+        return sugerencia
 
     # --- Operaciones --------------------------------------------------------------------
 
@@ -111,8 +157,8 @@ class ComprasService:
     def _exigir_pendiente(orden: OrdenCompra, accion: str) -> None:
         if orden.estado != EstadoOrdenCompra.PENDIENTE:
             raise ValidacionError(
-                f"No se puede {accion} la orden de compra {orden.numero}: está {orden.estado}, "
-                "solo se pueden modificar las PENDIENTES."
+                f"No se puede {accion} la orden de compra {orden.numero}: está «{nombre_estado(orden.estado)}» "
+                "y solo se pueden modificar las pendientes."
             )
 
     def _armar_detalles(self, renglones: Iterable[tuple[int, int, Decimal]]) -> list[DetalleOrdenCompra]:

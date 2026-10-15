@@ -24,6 +24,7 @@ from src.dominio.inventario.modelos import (
     NecesidadReposicion,
     OrdenReposicion,
     OrigenNecesidad,
+    nombre_estado,
 )
 from src.excepciones import EntidadNoEncontradaError, ValidacionError
 from src.persistencia.conexion import BaseDeDatos
@@ -99,7 +100,9 @@ class ReposicionService:
         with self.db.transaccion():
             necesidad = self.obtener_necesidad(necesidad_id)
             if necesidad.estado != EstadoNecesidad.PENDIENTE:
-                raise ValidacionError(f"Solo se pueden anular necesidades PENDIENTES (esta está {necesidad.estado}).")
+                raise ValidacionError(
+                    f"Solo se pueden anular necesidades pendientes (esta está «{nombre_estado(necesidad.estado)}»)."
+                )
             necesidad.estado = EstadoNecesidad.ANULADA
             self._necesidades.guardar(necesidad)
         return necesidad
@@ -133,7 +136,8 @@ class ReposicionService:
         for necesidad in necesidades:
             if necesidad.estado != EstadoNecesidad.PENDIENTE:
                 raise ValidacionError(
-                    f"La necesidad {necesidad.id} está {necesidad.estado}: solo se consolidan las PENDIENTES."
+                    f"La necesidad {necesidad.id} está «{nombre_estado(necesidad.estado)}»: "
+                    "solo se consolidan las pendientes."
                 )
         destinos = {necesidad.ubicacion_id for necesidad in necesidades}
         if len(destinos) > 1:
@@ -243,14 +247,16 @@ class ReposicionService:
     def _validar_transicion(orden: OrdenReposicion, nuevo: EstadoOrdenReposicion) -> None:
         if nuevo not in TRANSICIONES[orden.estado]:
             raise ValidacionError(
-                f"La orden de reposición {orden.numero} no puede pasar de {orden.estado} a {nuevo}."
+                f"La orden de reposición {orden.numero} no puede pasar de «{nombre_estado(orden.estado)}» "
+                f"a «{nombre_estado(nuevo)}»."
             )
 
     @staticmethod
     def _exigir_estado(orden: OrdenReposicion, estado: EstadoOrdenReposicion, accion: str) -> None:
         if orden.estado != estado:
             raise ValidacionError(
-                f"No se puede {accion} de la orden {orden.numero}: debe estar {estado} y está {orden.estado}."
+                f"No se puede {accion} de la orden {orden.numero}: debe estar «{nombre_estado(estado)}» "
+                f"y está «{nombre_estado(orden.estado)}»."
             )
 
     @staticmethod
