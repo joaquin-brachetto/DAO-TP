@@ -15,6 +15,15 @@ Cada integrante toca solo el bloque de su módulo, así no hay conflictos.
 from collections.abc import Callable
 from tkinter import Misc
 
+from src.ui.pantallas.inventario import (
+    abrir_cargar_stock_de_prueba,
+    abrir_compras,
+    abrir_movimientos,
+    abrir_necesidades,
+    abrir_ordenes_reposicion,
+    abrir_stock,
+    abrir_transito,
+)
 from src.ui.pantallas.maestros import abrir_categorias, abrir_productos, abrir_proveedores, abrir_ubicaciones
 from src.ui.pantallas.reportes_maestros import abrir_existencias, abrir_productos_vendidos
 from src.ui.pantallas.ventas import abrir_caja, abrir_devoluciones, abrir_reporte_ventas, abrir_ventas
@@ -31,10 +40,11 @@ OPCIONES_MENU: dict[str, list[tuple[str, AbrirPantalla | None]]] = {
     ],
     # --- pohlsi ---
     "Inventario": [
-        ("Stock por ubicación", None),
-        ("Compras a proveedores", None),
-        ("Necesidades de reposición", None),
-        ("Órdenes de reposición", None),
+        ("Stock por ubicación", abrir_stock),
+        ("Compras a proveedores", abrir_compras),
+        ("Necesidades de reposición", abrir_necesidades),
+        ("Órdenes de reposición", abrir_ordenes_reposicion),
+        ("Cargar stock de prueba", abrir_cargar_stock_de_prueba),
     ],
     # --- turco ---
     "Logística": [
@@ -53,8 +63,8 @@ OPCIONES_MENU: dict[str, list[tuple[str, AbrirPantalla | None]]] = {
     "Reportes": [
         ("Existencias y stock mínimo", abrir_existencias),                    # brache
         ("Productos más vendidos y margen", abrir_productos_vendidos),        # brache
-        ("Movimientos y valorización del inventario", None),                  # pohlsi
-        ("Tiempo promedio de tránsito CD → locales", None),                   # pohlsi
+        ("Movimientos y valorización del inventario", abrir_movimientos),     # pohlsi
+        ("Tiempo promedio de tránsito CD → locales", abrir_transito),         # pohlsi
         ("Bultos rechazados y mermas", None),                                 # turco
         ("Ventas por período, local y medio de pago", abrir_reporte_ventas),  # vinchi
     ],

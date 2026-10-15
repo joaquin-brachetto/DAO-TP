@@ -97,6 +97,7 @@ class PantallaVentas(tk.Toplevel):
         selector = ttk.Frame(panel)
         selector.grid(row=3, column=1, sticky="ew", pady=(12, 4))
         self.producto_combo.pack(in_=selector, side="left", fill="x", expand=True)
+        self.producto_combo.lift(selector)  # se creó antes que el frame: traerlo al frente para que se vea
         ttk.Label(selector, text="Cantidad").pack(side="left", padx=(10, 4))
         ttk.Entry(selector, textvariable=self.cantidad, width=6).pack(side="left")
         ttk.Button(selector, text="Agregar", command=self._agregar_item).pack(side="left", padx=6)
@@ -119,6 +120,7 @@ class PantallaVentas(tk.Toplevel):
         pago_frame = ttk.Frame(panel)
         pago_frame.grid(row=7, column=1, sticky="ew")
         self.medio_pago.pack(in_=pago_frame, side="left")
+        self.medio_pago.lift(pago_frame)  # ídem: si no, queda tapado por el frame
         ttk.Entry(pago_frame, textvariable=self.monto_pago, width=12).pack(side="left", padx=6)
         ttk.Label(pago_frame, text="Cuotas").pack(side="left")
         ttk.Spinbox(pago_frame, from_=1, to=12, textvariable=self.cuotas_pago, width=4).pack(side="left", padx=4)

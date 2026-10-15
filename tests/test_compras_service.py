@@ -165,3 +165,60 @@ def test_listar_filtra_por_estado(compras, escenario):
 
     assert [o.id for o in compras.listar(EstadoOrdenCompra.PENDIENTE)] == [otra.id]
     assert len(compras.listar()) == 2
+
+
+# --- Compras sugeridas por faltantes del CD (opcional del plan) ---------------------------------------
+
+
+@pytest.fixture
+def con_faltante(db, stock, escenario, definir_minimo):
+    """El CD tiene 4 unidades de yerba con mínimo 10; el proveedor la vende a $90."""
+    db.ejecutar(
+        "INSERT INTO producto_proveedor (producto_id, proveedor_id, costo_pactado) VALUES (?, ?, ?)",
+        (escenario.producto, escenario.proveedor, Decimal("90")),
+    )
+    definir_minimo(escenario.producto, escenario.cd, 10)
+    stock.ingresar_compra(escenario.cd, escenario.producto, 4, "CARGA")
+    return escenario
+
+
+def test_sugiere_lo_que_falta_al_proveedor_mas_barato(compras, con_faltante):
+    sugerencia = compras.sugerir_compras()
+
+    assert sugerencia.por_proveedor == {con_faltante.proveedor: [(con_faltante.producto, 6, Decimal("90"))]}
+    assert sugerencia.sin_proveedor == []
+
+
+def test_descuenta_lo_ya_pedido_en_ordenes_pendientes(compras, con_faltante):
+    compras.crear_orden(con_faltante.proveedor, con_faltante.cd, [(con_faltante.producto, 4, Decimal("90"))])
+
+    assert compras.sugerir_compras().por_proveedor[con_faltante.proveedor] == [(con_faltante.producto, 2, Decimal("90"))]
+
+
+def test_si_lo_pedido_alcanza_no_sugiere_nada(compras, con_faltante):
+    compras.crear_orden(con_faltante.proveedor, con_faltante.cd, [(con_faltante.producto, 6, Decimal("90"))])
+
+    assert compras.sugerir_compras().vacia()
+
+
+def test_elige_el_proveedor_con_menor_costo_pactado(db, compras, con_faltante):
+    barato = db.ejecutar("INSERT INTO proveedor (cuit, razon_social) VALUES ('20123456786', 'Barato SRL')").lastrowid
+    db.ejecutar("INSERT INTO producto_proveedor (producto_id, proveedor_id, costo_pactado) VALUES (?, ?, ?)",
+                (con_faltante.producto, barato, Decimal("80")))
+
+    assert list(compras.sugerir_compras().por_proveedor) == [barato]
+
+
+def test_no_sugiere_si_el_cd_esta_sobre_el_minimo(compras, stock, con_faltante):
+    stock.ingresar_compra(con_faltante.cd, con_faltante.producto, 7, "CARGA")  # 11 > 10
+
+    assert compras.sugerir_compras().vacia()
+
+
+def test_informa_los_productos_sin_proveedor(compras, stock, escenario, definir_minimo):
+    definir_minimo(escenario.otro_producto, escenario.cd, 5)
+
+    sugerencia = compras.sugerir_compras()
+
+    assert sugerencia.sin_proveedor == [(escenario.otro_producto, 5)]
+    assert sugerencia.por_proveedor == {}

@@ -23,6 +23,7 @@ Patrón **Observer**: después de cada egreso, si el disponible llegó al mínim
 """
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 
@@ -44,8 +45,15 @@ class StockInsuficienteError(ValidacionError):
 
 
 class StockService:
-    def __init__(self, db: BaseDeDatos | None = None, minimos: StockMinimoService | None = None) -> None:
+    def __init__(
+        self,
+        db: BaseDeDatos | None = None,
+        minimos: StockMinimoService | None = None,
+        ahora: Callable[[], datetime] = datetime.now,
+    ) -> None:
+        """`ahora` da la fecha y hora de cada movimiento (los tests la fijan, como en ProductoService)."""
         self.db = db or BaseDeDatos()
+        self._ahora = ahora
         self._stock = StockRepositorio(self.db)
         self._movimientos = MovimientoStockRepositorio(self.db)
         self._maestros = LecturaMaestros(self.db)
@@ -159,7 +167,10 @@ class StockService:
         merma: int = 0,
         costo_unitario: Decimal | None = None,
     ) -> Stock:
-        """Aplica el movimiento: los signos de `disponible`, `pendiente` y `merma` dicen qué balde sube (+1) o baja (-1)."""
+        """Aplica el movimiento.
+
+        Los signos de `disponible`, `pendiente` y `merma` dicen qué balde sube (+1) o baja (-1).
+        """
         cantidad = entero_positivo(cantidad)
         ref = self._normalizar_referencia(ref)
         producto = self._validar_existencia(producto_id, ubicacion_id)
@@ -192,7 +203,7 @@ class StockService:
                     tipo_documento=ref.tipo_documento,
                     documento_id=ref.documento_id,
                     usuario=ref.usuario,
-                    fecha_hora=datetime.now(),
+                    fecha_hora=self._ahora(),
                 )
             )
         return stock

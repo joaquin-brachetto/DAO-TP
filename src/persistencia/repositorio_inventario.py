@@ -179,6 +179,30 @@ class LecturaMaestros:
             raise ValueError(f"Tabla sin numeración: {tabla}")
         return int(self.db.consultar_uno(f"SELECT COALESCE(MAX(numero), 0) + 1 AS n FROM {tabla}")["n"])
 
+    def faltantes_de_compra(self, cd_id: int):
+        """Productos activos del CD con stock mínimo: disponible y lo ya pedido en órdenes de compra pendientes."""
+        return self.db.consultar(
+            "SELECT sm.producto_id, sm.cantidad_minima, COALESCE(s.cantidad_disponible, 0) AS disponible, "
+            "COALESCE((SELECT SUM(d.cantidad) FROM detalle_orden_compra d "
+            "          JOIN orden_compra o ON o.id = d.orden_compra_id "
+            "          WHERE o.estado = 'PENDIENTE' AND o.destino_id = sm.ubicacion_id "
+            "          AND d.producto_id = sm.producto_id), 0) AS pedido "
+            "FROM stock_minimo sm JOIN producto p ON p.id = sm.producto_id "
+            "LEFT JOIN stock s ON s.producto_id = sm.producto_id AND s.ubicacion_id = sm.ubicacion_id "
+            "WHERE sm.ubicacion_id = ? AND sm.cantidad_minima > 0 AND p.activo = 1 ORDER BY p.nombre",
+            (cd_id,),
+        )
+
+    def proveedor_mas_barato(self, producto_id: int):
+        """Proveedor activo con menor costo pactado para el producto (None si no tiene ninguno)."""
+        return self.db.consultar_uno(
+            "SELECT pp.proveedor_id, COALESCE(pp.costo_pactado, p.costo_actual) AS costo "
+            "FROM producto_proveedor pp JOIN proveedor pr ON pr.id = pp.proveedor_id "
+            "JOIN producto p ON p.id = pp.producto_id "
+            "WHERE pp.producto_id = ? AND pr.activo = 1 ORDER BY costo, pp.proveedor_id LIMIT 1",
+            (producto_id,),
+        )
+
     def minimos_de_sucursal(self, ubicacion_id: int, producto_id: int | None = None):
         """Productos activos con stock mínimo en la sucursal, junto con su disponible y pendiente actuales."""
         sql = (
