@@ -8,6 +8,7 @@ from src.datos_prueba import cargar_datos_de_prueba
 from src.persistencia.conexion import BaseDeDatos
 from src.servicios.inventario_app import crear_stock_service, describir_alerta
 from src.servicios.observadores_stock import AlertaStock
+from src.servicios.ventas_service import VentasService
 from src.ui.componentes import confirmar, ejecutar_con_manejo_de_errores, mostrar_info
 from src.ui.menu import OPCIONES_MENU, AbrirPantalla
 
@@ -20,7 +21,11 @@ class VentanaPrincipal(tk.Tk):
         self.minsize(640, 400)
         # Inventario (pohlsi): un único StockService para toda la aplicación. Las pantallas lo toman
         # como `padre.stock_service`; sus observadores avisan el stock mínimo en la barra de abajo.
-        self.stock_service, self.alertas_stock = crear_stock_service(al_alertar=self._avisar_stock_minimo)
+        self.db = BaseDeDatos()
+        self.stock_service, self.alertas_stock = crear_stock_service(
+            self.db, al_alertar=self._avisar_stock_minimo
+        )
+        self.ventas_service = VentasService(self.db, self.stock_service)
         self._armar_menu()
         self._armar_contenido()
 

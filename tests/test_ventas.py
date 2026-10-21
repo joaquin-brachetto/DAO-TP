@@ -3,6 +3,7 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
+from src.dominio.inventario.modelos import Referencia, TipoMovimiento
 from src.dominio.ventas.modelos import (
     Cliente,
     CondicionIva,
@@ -11,6 +12,7 @@ from src.dominio.ventas.modelos import (
 )
 from src.excepciones import EntidadDuplicadaError, ValidacionError
 from src.reportes.ventas_reporte import ReporteVentas
+from src.servicios.stock_service import StockService as StockServiceReal
 from src.servicios.ventas_service import PagoSolicitado, VentasService
 from tests.utilidades import TestConBaseEnMemoria
 
@@ -280,3 +282,55 @@ class VentasTests(TestConBaseEnMemoria):
         saldo = self.service.cerrar_caja(1)
         self.assertEqual(saldo, Decimal("60.00"))
         self.assertIsNone(self.service.saldo_caja_abierta(1))
+
+    def test_integracion_real_venta_y_devolucion_actualiza_stock_y_movimientos(self) -> None:
+        stock_real = StockServiceReal(self.db)
+        stock_real.ingresar_pendiente(1, 1, 5, Referencia("REMITO", 25))
+        stock_real.confirmar_disponible(1, 1, 5, Referencia("REMITO", 25))
+        ventas = VentasService(self.db, stock_real)
+
+        venta_id = ventas.registrar_venta(
+            1, {1: 2}, [self.pago_efectivo("20.00")], vendedor="Vinchi"
+        )
+        self.assertEqual(stock_real.stock_disponible(1, 1), 3)
+        renglon = self.db.consultar_uno(
+            "SELECT id FROM detalle_venta WHERE venta_id = ?", (venta_id,)
+        )
+        devolucion_id = ventas.registrar_devolucion(
+            venta_id, [DetalleDevolucion(int(renglon["id"]), 1)], "Reintegro integrado"
+        )
+
+        self.assertEqual(stock_real.stock_disponible(1, 1), 4)
+        movimientos = self.db.consultar(
+            "SELECT tipo, tipo_documento, documento_id FROM movimiento_stock ORDER BY id"
+        )
+        self.assertEqual(
+            [movimiento["tipo"] for movimiento in movimientos],
+            ["INGRESO_PENDIENTE", "CONFIRMACION_VERIFICADO", "EGRESO_VENTA", "REINGRESO_DEVOLUCION"],
+        )
+        self.assertEqual((movimientos[2]["tipo_documento"], movimientos[2]["documento_id"]),
+                         ("VENTA", venta_id))
+        self.assertEqual((movimientos[3]["tipo_documento"], movimientos[3]["documento_id"]),
+                         ("DEVOLUCION", devolucion_id))
+
+    def test_error_del_stock_service_real_revierte_venta_cobros_y_movimientos(self) -> None:
+        class StockQueFallaAlEgresar(StockServiceReal):
+            def egresar(self, ubicacion_id, producto_id, cantidad, ref, tipo=None):
+                super().egresar(ubicacion_id, producto_id, cantidad, ref, **({} if tipo is None else {"tipo": tipo}))
+                raise RuntimeError("falló la confirmación externa")
+
+        stock_real = StockQueFallaAlEgresar(self.db)
+        stock_real.ingresar_pendiente(1, 1, 3, Referencia("REMITO", 26))
+        stock_real.confirmar_disponible(1, 1, 3, Referencia("REMITO", 26))
+        ventas = VentasService(self.db, stock_real)
+
+        with self.assertRaisesRegex(RuntimeError, "falló la confirmación externa"):
+            ventas.registrar_venta(
+                1, {1: 1}, [self.pago_efectivo("10.00")], vendedor="Vinchi"
+            )
+
+        self.assertEqual(stock_real.stock_disponible(1, 1), 3)
+        self.assertEqual(self.db.consultar_uno("SELECT COUNT(*) AS n FROM venta")["n"], 0)
+        self.assertEqual(self.db.consultar_uno("SELECT COUNT(*) AS n FROM cobro")["n"], 0)
+        tipos = [fila["tipo"] for fila in self.db.consultar("SELECT tipo FROM movimiento_stock ORDER BY id")]
+        self.assertEqual(tipos, ["INGRESO_PENDIENTE", "CONFIRMACION_VERIFICADO"])

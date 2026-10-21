@@ -27,12 +27,12 @@ Alcance: implementación del paquete **Ventas** de `modelo_dominio.md` y del pro
 
 ## Integración con Inventario
 
-`VentasService` recibe un `StockService` por constructor. Usa exclusivamente el contrato compartido para consultar stock, egresar ventas y reingresar devoluciones. El módulo de pohlsi todavía está pendiente en este repositorio, por eso la interfaz de ventas informa que no está integrado cuando la aplicación no inyecta ese servicio; no se incluye un inventario alternativo ni un stub productivo.
+`VentasService` recibe un `StockService` por constructor. Usa exclusivamente el contrato compartido para consultar stock, egresar ventas y reingresar devoluciones. `VentanaPrincipal` crea el servicio compartido de inventario y pasa la misma instancia de `BaseDeDatos` a `VentasService`, de modo que los cambios de venta y stock participan de la transacción exterior. No se incluye un inventario alternativo ni un stub productivo.
 
-Al completar la integración, la aplicación debe construir `VentasService(db, stock_service)` y exponerlo como `ventas_service` en la ventana principal, o exponer `stock_service` para que la pantalla lo construya. Para que la transacción abarque los movimientos de stock y la venta, el servicio de inventario debe utilizar la misma instancia `BaseDeDatos`.
+La pantalla puede recibir `ventas_service` desde su ventana padre; así las acciones de venta y devolución operan sobre el mismo servicio y base compartidos.
 
 ## Pantallas y pruebas
 
 El menú **Ventas** abre las pestañas de Venta, Devolución, Caja y Reporte R6. El comprobante aparece con número y tipo al consultar la venta en la base; la pantalla confirma su identificador. El reporte permite filtrar fechas y sucursal, presenta ingresos por medio de pago y grafica los totales.
 
-Los tests de `tests/test_ventas.py` usan una base SQLite en memoria y un doble de `StockService`; cubren ventas, stock insuficiente, pagos mixtos, Strategy, Factura A/B, correlatividad, caja, devoluciones parciales, límites V5 y R6 sin depender de que el trabajo de pohlsi esté terminado.
+Los tests de `tests/test_ventas.py` usan una base SQLite en memoria; hay casos unitarios con un doble y pruebas de integración con el `StockService` real, incluyendo rollback conjunto si falla el egreso. Cubren ventas, stock insuficiente, pagos mixtos, Strategy, Factura A/B, correlatividad, caja, devoluciones parciales, límites V5 y R6.
