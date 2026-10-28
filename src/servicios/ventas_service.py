@@ -18,6 +18,7 @@ from src.dominio.ventas.modelos import (
     crear_medio_pago,
     dinero,
 )
+from src.dominio.inventario.modelos import Stock
 from src.excepciones import EntidadNoEncontradaError, ValidacionError
 from src.persistencia.conexion import BaseDeDatos
 from src.persistencia.repositorio_ventas import ClienteRepositorio, VentasRepositorio
@@ -28,9 +29,9 @@ class StockService(Protocol):
 
     def stock_disponible(self, ubicacion_id: int, producto_id: int) -> int: ...
 
-    def egresar(self, ubicacion_id: int, producto_id: int, cantidad: int, ref: str) -> None: ...
+    def egresar(self, ubicacion_id: int, producto_id: int, cantidad: int, ref: str) -> Stock: ...
 
-    def reingresar(self, ubicacion_id: int, producto_id: int, cantidad: int, ref: str) -> None: ...
+    def reingresar(self, ubicacion_id: int, producto_id: int, cantidad: int, ref: str) -> Stock: ...
 
 
 @dataclass

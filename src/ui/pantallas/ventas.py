@@ -1,7 +1,7 @@
 """Pantallas P7: punto de venta, devoluciones, caja y reporte R6."""
 
 import tkinter as tk
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from tkinter import messagebox, ttk
 
@@ -27,6 +27,7 @@ class PantallaVentas(tk.Toplevel):
         self.reporte = ReporteVentas(self.db)
         self.items: dict[int, int] = {}
         self.pagos: list[PagoSolicitado] = []
+        self.detalles_pendientes_devolucion: list[DetalleDevolucion] = []
         self.productos: dict[str, int] = {}
         self.sucursales: dict[str, int] = {}
         self._armar_interfaz(pestaña_inicial)
@@ -253,34 +254,163 @@ class PantallaVentas(tk.Toplevel):
 
     def _armar_tab_devolucion(self) -> None:
         panel = self.tab_devolucion
-        self.venta_devolucion = tk.StringVar()
-        self.detalles_devolucion = tk.StringVar()
         self.motivo_devolucion = tk.StringVar()
         self.reingresa_stock = tk.BooleanVar(value=True)
-        self._fila_campo(panel, 0, "Venta (id)", ttk.Entry(panel, textvariable=self.venta_devolucion))
-        self._fila_campo(panel, 1, "Renglones id:cantidad", ttk.Entry(panel, textvariable=self.detalles_devolucion))
-        self._fila_campo(panel, 2, "Motivo", ttk.Entry(panel, textvariable=self.motivo_devolucion))
-        ttk.Checkbutton(panel, text="Reingresar productos al stock", variable=self.reingresa_stock).grid(
-            row=3, column=1, sticky="w", pady=6
+        self.ventas_devolucion: dict[str, int] = {}
+        self.renglones_disponibles: dict[str, dict] = {}
+        self.venta_combo = ttk.Combobox(panel, state="readonly")
+        self.venta_combo.bind("<<ComboboxSelected>>", self._cargar_renglones_devolucion)
+        self._fila_campo(panel, 0, "Venta reciente", self.venta_combo)
+        self.renglon_combo = ttk.Combobox(panel, state="readonly")
+        self._fila_campo(panel, 1, "Producto vendido", self.renglon_combo)
+        self.cantidad_devolucion = tk.StringVar(value="1")
+        controles = ttk.Frame(panel)
+        ttk.Spinbox(controles, from_=1, to=9999, textvariable=self.cantidad_devolucion, width=7).pack(side="left")
+        ttk.Checkbutton(controles, text="Reingresa al stock", variable=self.reingresa_stock).pack(
+            side="left", padx=8
         )
+        ttk.Button(controles, text="Agregar renglón", command=self._agregar_renglon_devolucion).pack(side="left")
+        self._fila_campo(panel, 2, "Cantidad", controles)
+        self.tabla_devolucion = self._tabla(
+            panel, 3, [("producto", "Producto", 300), ("cantidad", "Cantidad", 100), ("stock", "Reingresa", 100)]
+        )
+        ttk.Button(panel, text="Quitar renglón", command=self._quitar_renglon_devolucion).grid(
+            row=3, column=0, sticky="w"
+        )
+        self._fila_campo(panel, 4, "Motivo", ttk.Entry(panel, textvariable=self.motivo_devolucion))
         ttk.Button(panel, text="Registrar devolución", command=self._registrar_devolucion).grid(
-            row=4, column=1, sticky="e", pady=8
+            row=5, column=1, sticky="e", pady=8
         )
+        panel.columnconfigure(1, weight=1)
+        self._cargar_ventas_devolucion()
+
+    def _cargar_ventas_devolucion(self) -> None:
+        fecha_desde = (datetime.now() - timedelta(days=self.service.plazo_devolucion_dias)).isoformat(sep=" ")
+        filas = self.db.consultar(
+            "SELECT v.id, v.numero, v.fecha_hora, v.total, u.nombre AS sucursal, c.tipo, c.numero AS numero_comprobante "
+            "FROM venta v JOIN ubicacion u ON u.id = v.ubicacion_id "
+            "JOIN comprobante c ON c.venta_id = v.id "
+            "WHERE v.estado = 'CONFIRMADA' AND v.fecha_hora >= ? ORDER BY v.fecha_hora DESC",
+            (fecha_desde,),
+        )
+        self.ventas_devolucion = {
+            f"Venta {fila['numero']} · {fila['sucursal']} · {fila['fecha_hora']} · "
+            f"{fila['tipo']} {fila['numero_comprobante']} · ${fila['total']:.2f} (id {fila['id']})": int(fila["id"])
+            for fila in filas
+        }
+        self.venta_combo.configure(values=list(self.ventas_devolucion))
+        if self.ventas_devolucion:
+            self.venta_combo.current(0)
+            self._cargar_renglones_devolucion()
+        else:
+            self.venta_combo.set("")
+            self.renglon_combo.configure(values=[])
+            self.renglon_combo.set("")
+            self.renglones_disponibles.clear()
+
+    def _cargar_renglones_devolucion(self, _evento: tk.Event | None = None) -> None:
+        venta_id = self.ventas_devolucion.get(self.venta_combo.get())
+        self.detalles_pendientes_devolucion.clear()
+        self.tabla_devolucion.delete(*self.tabla_devolucion.get_children())
+        self.renglones_disponibles.clear()
+        if venta_id is None:
+            self.renglon_combo.configure(values=[])
+            self.renglon_combo.set("")
+            return
+        filas = self.db.consultar(
+            "SELECT d.id, d.cantidad, d.cantidad_devuelta, p.sku, p.nombre "
+            "FROM detalle_venta d JOIN producto p ON p.id = d.producto_id "
+            "WHERE d.venta_id = ? ORDER BY d.id", (venta_id,),
+        )
+        for fila in filas:
+            restantes = int(fila["cantidad"]) - int(fila["cantidad_devuelta"])
+            if restantes <= 0:
+                continue
+            etiqueta = (
+                f"{fila['sku']} · {fila['nombre']} · restan {restantes} de {fila['cantidad']} "
+                f"(renglón {fila['id']})"
+            )
+            self.renglones_disponibles[etiqueta] = {
+                "id": int(fila["id"]), "restantes": restantes,
+                "producto": f"{fila['sku']} · {fila['nombre']}",
+            }
+        valores = list(self.renglones_disponibles)
+        self.renglon_combo.configure(values=valores)
+        if valores:
+            self.renglon_combo.current(0)
+
+    def _agregar_renglon_devolucion(self) -> None:
+        seleccion = self.renglones_disponibles.get(self.renglon_combo.get())
+        if seleccion is None:
+            self._error("Seleccione un renglón con unidades pendientes de devolución.")
+            return
+        try:
+            cantidad = int(self.cantidad_devolucion.get())
+        except ValueError:
+            self._error("La cantidad debe ser un número entero positivo.")
+            return
+        agregada = sum(
+            detalle.cantidad
+            for detalle in self.detalles_pendientes_devolucion
+            if detalle.detalle_venta_id == seleccion["id"]
+        )
+        disponible = seleccion["restantes"] - agregada
+        if cantidad <= 0 or cantidad > disponible:
+            self._error(f"Para ese renglón puede agregar entre 1 y {disponible} unidades.")
+            return
+        existente = next(
+            (detalle for detalle in self.detalles_pendientes_devolucion
+             if detalle.detalle_venta_id == seleccion["id"]),
+            None,
+        )
+        if existente is not None:
+            if existente.reingresa_stock != self.reingresa_stock.get():
+                self._error("Mantenga la misma opción de reingreso para todas las unidades del renglón.")
+                return
+            existente.cantidad += cantidad
+            indice = self.detalles_pendientes_devolucion.index(existente)
+            self.tabla_devolucion.item(
+                str(indice), values=(seleccion["producto"], existente.cantidad,
+                                     "Sí" if existente.reingresa_stock else "No")
+            )
+        else:
+            self.detalles_pendientes_devolucion.append(
+                DetalleDevolucion(seleccion["id"], cantidad, self.reingresa_stock.get())
+            )
+            self.tabla_devolucion.insert(
+                "", "end", iid=str(len(self.detalles_pendientes_devolucion) - 1),
+                values=(seleccion["producto"], cantidad, "Sí" if self.reingresa_stock.get() else "No"),
+            )
+        self.cantidad_devolucion.set("1")
+
+    def _quitar_renglon_devolucion(self) -> None:
+        seleccion = self.tabla_devolucion.selection()
+        if not seleccion:
+            return
+        indice = int(seleccion[0])
+        self.detalles_pendientes_devolucion.pop(indice)
+        self.tabla_devolucion.delete(*self.tabla_devolucion.get_children())
+        for nuevo_indice, detalle in enumerate(self.detalles_pendientes_devolucion):
+            fila = self.db.consultar_uno(
+                "SELECT p.sku, p.nombre FROM detalle_venta d JOIN producto p ON p.id = d.producto_id "
+                "WHERE d.id = ?", (detalle.detalle_venta_id,),
+            )
+            self.tabla_devolucion.insert(
+                "", "end", iid=str(nuevo_indice),
+                values=(f"{fila['sku']} · {fila['nombre']}", detalle.cantidad,
+                        "Sí" if detalle.reingresa_stock else "No"),
+            )
 
     def _registrar_devolucion(self) -> None:
         try:
-            venta_id = int(self.venta_devolucion.get())
-            renglones = []
-            for parte in self.detalles_devolucion.get().split(","):
-                detalle_id, cantidad = (int(valor.strip()) for valor in parte.split(":"))
-                renglones.append(DetalleDevolucion(detalle_id, cantidad, self.reingresa_stock.get()))
+            venta_id = self.ventas_devolucion[self.venta_combo.get()]
             devolucion_id = self.service.registrar_devolucion(
-                venta_id, renglones, self.motivo_devolucion.get()
+                venta_id, self.detalles_pendientes_devolucion, self.motivo_devolucion.get()
             )
             messagebox.showinfo("Devolución", f"Devolución registrada: {devolucion_id}", parent=self)
-            self.venta_devolucion.set("")
-            self.detalles_devolucion.set("")
+            self.detalles_pendientes_devolucion.clear()
             self.motivo_devolucion.set("")
+            self._cargar_ventas_devolucion()
         except (ErrorDeNegocio, ValueError) as error:
             self._error(str(error))
 
