@@ -24,6 +24,14 @@ from src.ui.pantallas.inventario import (
     abrir_stock,
     abrir_transito,
 )
+from src.ui.pantallas.logistica import (
+    abrir_armado_bultos,
+    abrir_cargar_logistica_de_prueba,
+    abrir_despacho,
+    abrir_recepcion,
+    abrir_reporte_rechazos,
+    abrir_trazabilidad_bultos,
+)
 from src.ui.pantallas.maestros import abrir_categorias, abrir_productos, abrir_proveedores, abrir_ubicaciones
 from src.ui.pantallas.reportes_maestros import abrir_existencias, abrir_productos_vendidos
 from src.ui.pantallas.ventas import abrir_caja, abrir_devoluciones, abrir_reporte_ventas, abrir_ventas
@@ -48,10 +56,11 @@ OPCIONES_MENU: dict[str, list[tuple[str, AbrirPantalla | None]]] = {
     ],
     # --- turco ---
     "Logística": [
-        ("Armado de bultos y remitos", None),
-        ("Despacho", None),
-        ("Recepción en sucursal", None),
-        ("Trazabilidad de bultos", None),
+        ("Armado de bultos y remitos", abrir_armado_bultos),
+        ("Despacho", abrir_despacho),
+        ("Recepción en sucursal", abrir_recepcion),
+        ("Trazabilidad de bultos", abrir_trazabilidad_bultos),
+        ("Cargar datos de prueba de logística", abrir_cargar_logistica_de_prueba),
     ],
     # --- vinchi ---
     "Ventas": [
@@ -65,7 +74,7 @@ OPCIONES_MENU: dict[str, list[tuple[str, AbrirPantalla | None]]] = {
         ("Productos más vendidos y margen", abrir_productos_vendidos),        # brache
         ("Movimientos y valorización del inventario", abrir_movimientos),     # pohlsi
         ("Tiempo promedio de tránsito CD → locales", abrir_transito),         # pohlsi
-        ("Bultos rechazados y mermas", None),                                 # turco
+        ("Bultos rechazados y mermas", abrir_reporte_rechazos),               # turco
         ("Ventas por período, local y medio de pago", abrir_reporte_ventas),  # vinchi
     ],
 }
