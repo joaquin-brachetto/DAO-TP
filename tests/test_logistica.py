@@ -44,7 +44,6 @@ from src.servicios.logistica_service import EspecificacionBulto, LogisticaServic
 from src.servicios.observadores_stock import AlertaStockMinimo
 from src.servicios.reposicion_service import ReposicionService
 from src.servicios.stock_service import StockInsuficienteError, StockService
-from tests.utilidades import TestConBaseEnMemoria
 
 REF_COMPRA = Referencia("ORDEN_COMPRA", 1, usuario="test")
 FECHA_BASE = datetime(2026, 10, 10, 9, 0, 0)
@@ -590,56 +589,50 @@ def test_datos_prueba_logistica_carga_escenario_completo(db):
 
 
 # =============================================================================
-# 5. SUITE COMPATIBLE CON PYTHON -M UNITTEST
+# 5. FLUJO COMPLETO DE PUNTA A PUNTA
 # =============================================================================
 
 
-class TestLogisticaUnittest(TestConBaseEnMemoria):
-    """Garantiza cobertura completa también cuando se ejecuta `python -m unittest`."""
+def test_flujo_completo_verificado_y_rechazado_e_inmutabilidad(db):
+    cd = db.ejecutar("INSERT INTO ubicacion (tipo, codigo, nombre) VALUES ('CD', 'CD1', 'Centro')").lastrowid
+    sucursal = db.ejecutar(
+        "INSERT INTO ubicacion (tipo, codigo, nombre, punto_venta) VALUES ('SUCURSAL', 'S1', 'Local 1', 1)"
+    ).lastrowid
+    cat = db.ejecutar("INSERT INTO categoria (nombre) VALUES ('General')").lastrowid
+    producto = db.ejecutar(
+        "INSERT INTO producto (sku, nombre, categoria_id, costo_actual, precio_venta_actual) "
+        "VALUES ('SKU-1', 'Producto 1', ?, 100, 150)",
+        (cat,),
+    ).lastrowid
+    stock = StockService(db)
+    reposicion = ReposicionService(db)
+    logistica = LogisticaService(db, stock, reposicion)
+    stock.ingresar_compra(cd, producto, 50, REF_COMPRA, Decimal("100"))
 
-    def setUp(self) -> None:
-        super().setUp()
-        self.cd = self.db.ejecutar(
-            "INSERT INTO ubicacion (tipo, codigo, nombre) VALUES ('CD', 'CD1', 'Centro')"
-        ).lastrowid
-        self.sucursal = self.db.ejecutar(
-            "INSERT INTO ubicacion (tipo, codigo, nombre, punto_venta) VALUES ('SUCURSAL', 'S1', 'Local 1', 1)"
-        ).lastrowid
-        cat = self.db.ejecutar("INSERT INTO categoria (nombre) VALUES ('General')").lastrowid
-        self.producto = self.db.ejecutar(
-            "INSERT INTO producto (sku, nombre, categoria_id, costo_actual, precio_venta_actual) "
-            "VALUES ('SKU-1', 'Producto 1', ?, 100, 150)",
-            (cat,),
-        ).lastrowid
-        self.stock = StockService(self.db)
-        self.reposicion = ReposicionService(self.db)
-        self.logistica = LogisticaService(self.db, self.stock, self.reposicion)
-        self.stock.ingresar_compra(self.cd, self.producto, 50, REF_COMPRA, Decimal("100"))
+    nec = reposicion.crear_necesidad(sucursal, [(producto, 10)])
+    orden = reposicion.consolidar([nec.id])
+    remito = logistica.armar_remito(
+        orden.id,
+        [
+            EspecificacionBulto([(producto, 6)], numero_precinto="PREC-U1"),
+            EspecificacionBulto([(producto, 4)], numero_precinto="PREC-U2"),
+        ],
+    )
+    logistica.registrar_despacho([remito.id], "Transporte UTN", "AF 000 AA")
+    assert stock.stock_disponible(sucursal, producto) == 0
 
-    def test_flujo_completo_verificado_y_rechazado_e_inmutabilidad(self) -> None:
-        nec = self.reposicion.crear_necesidad(self.sucursal, [(self.producto, 10)])
-        orden = self.reposicion.consolidar([nec.id])
-        remito = self.logistica.armar_remito(
-            orden.id,
-            [
-                EspecificacionBulto([(self.producto, 6)], numero_precinto="PREC-U1"),
-                EspecificacionBulto([(self.producto, 4)], numero_precinto="PREC-U2"),
-            ],
-        )
-        self.logistica.registrar_despacho([remito.id], "Transporte UTN", "AF 000 AA")
-        self.assertEqual(self.stock.stock_disponible(self.sucursal, self.producto), 0)
+    b1, b2 = remito.bultos
+    logistica.procesar_recepcion_completa(
+        remito.id,
+        recibido_por="receptor",
+        controles_por_bulto=[
+            (b1.id, "PREC-U1", True, "OK"),
+            (b2.id, "PREC-U2", False, "Precinto cortado"),
+        ],
+    )
 
-        b1, b2 = remito.bultos
-        self.logistica.procesar_recepcion_completa(
-            remito.id,
-            recibido_por="receptor",
-            controles_por_bulto=[
-                (b1.id, "PREC-U1", True, "OK"),
-                (b2.id, "PREC-U2", False, "Precinto cortado"),
-            ],
-        )
-        st = self.stock.stock_de(self.sucursal, self.producto)
-        self.assertEqual((st.cantidad_disponible, st.cantidad_merma, st.cantidad_pendiente), (6, 4, 0))
-        self.assertEqual(len(self.logistica.historial_bulto(b1.id)), 5)
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.db.ejecutar("DELETE FROM cambio_estado_bulto")
+    st = stock.stock_de(sucursal, producto)
+    assert (st.cantidad_disponible, st.cantidad_merma, st.cantidad_pendiente) == (6, 4, 0)
+    assert len(logistica.historial_bulto(b1.id)) == 5
+    with pytest.raises(sqlite3.IntegrityError):
+        db.ejecutar("DELETE FROM cambio_estado_bulto")
