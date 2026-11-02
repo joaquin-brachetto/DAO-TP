@@ -10,7 +10,12 @@ TP Integrador de Desarrollo de Aplicaciones con Objetos, tema 3: **Sistema de Ve
 ## Cómo ejecutar
 
 Requiere **Python 3.11 o superior** con Tkinter (en Windows y macOS viene incluido; en Linux
-puede hacer falta instalar `python3-tk`). No hay dependencias externas por ahora.
+puede hacer falta instalar `python3-tk`). El sistema no usa librerías externas; para los tests
+hace falta **pytest**:
+
+```bash
+python -m pip install -r requirements.txt
+```
 
 ```bash
 python main.py
@@ -33,10 +38,13 @@ También está en el menú **Archivo → Cargar datos de prueba**.
 ## Cómo correr los tests
 
 ```bash
-python -m unittest
+python -m pytest        # todos
+python -m pytest -v     # con el nombre de cada test
+python -m pytest -k ventas   # solo los que tienen "ventas" en el nombre
 ```
 
-Los tests usan una base en memoria, así que no tocan `datos/ventas.db`.
+Los tests usan una base en memoria (fixture `db` de `tests/conftest.py`), así que no tocan
+`datos/ventas.db`.
 
 ## Estructura
 
@@ -91,7 +99,8 @@ docs/
 5. **Pantalla:** creá una función `abrir_xxx(padre)` que abra un `tk.Toplevel`, y reemplazá el
    `None` correspondiente en `src/ui/menu.py`. Usá `Grilla`, `Formulario` y
    `ejecutar_con_manejo_de_errores` de `src/ui/componentes.py`.
-6. **Tests:** en `tests/`, heredando de `TestConBaseEnMemoria` (`tests/utilidades.py`).
+6. **Tests:** en `tests/test_<algo>.py`, con funciones `test_...`, `assert` y la fixture `db` de
+   `tests/conftest.py` (pytest).
 
 ## Convenciones de la base de datos
 

@@ -15,7 +15,6 @@ from src.reportes.logistica_reporte import ReporteBultosRechazados, TipoAnomalia
 from src.servicios.logistica_service import EspecificacionBulto, LogisticaService
 from src.servicios.reposicion_service import ReposicionService
 from src.servicios.stock_service import StockService
-from tests.utilidades import TestConBaseEnMemoria
 
 REF = Referencia("ORDEN_COMPRA", 1, usuario="test")
 DIA_BASE = datetime(2026, 10, 15, 10, 0, 0)
@@ -184,19 +183,16 @@ def test_r5_valida_periodo_y_tipo_anomalia(db):
         reporte.consultar(date(2026, 10, 1), date(2026, 10, 31), tipo_anomalia="INEXISTENTE")
 
 
-class TestReporteR5Unittest(TestConBaseEnMemoria):
-    """Ejecución del test de R5 bajo `python -m unittest`."""
+def test_reporte_r5_sobre_datos_de_prueba(db):
+    from src.datos_prueba import cargar_datos_de_prueba
+    from src.datos_prueba_inventario import cargar_stock_de_prueba
+    from src.datos_prueba_logistica import cargar_logistica_de_prueba
 
-    def test_reporte_r5_sobre_datos_de_prueba(self) -> None:
-        from src.datos_prueba import cargar_datos_de_prueba
-        from src.datos_prueba_inventario import cargar_stock_de_prueba
-        from src.datos_prueba_logistica import cargar_logistica_de_prueba
+    cargar_datos_de_prueba(db)
+    cargar_stock_de_prueba(db)
+    cargar_logistica_de_prueba(db)
 
-        cargar_datos_de_prueba(self.db)
-        cargar_stock_de_prueba(self.db)
-        cargar_logistica_de_prueba(self.db)
-
-        hoy = date.today()
-        resumen = ReporteBultosRechazados(self.db).consultar(hoy - timedelta(days=10), hoy)
-        self.assertEqual(resumen.total_bultos_rechazados, 2)
-        self.assertGreater(resumen.total_valor_merma, Decimal("0"))
+    hoy = date.today()
+    resumen = ReporteBultosRechazados(db).consultar(hoy - timedelta(days=10), hoy)
+    assert resumen.total_bultos_rechazados == 2
+    assert resumen.total_valor_merma > Decimal("0")

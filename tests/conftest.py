@@ -1,7 +1,6 @@
 """Fixtures compartidas de pytest.
 
-`db` reemplaza a `TestConBaseEnMemoria` (unittest): cada test arranca con una
-base vacía en memoria y el esquema completo creado.
+`db`: cada test arranca con una base vacía en memoria y el esquema completo creado.
 `escenario` carga los maestros mínimos para probar inventario.
 """
 
