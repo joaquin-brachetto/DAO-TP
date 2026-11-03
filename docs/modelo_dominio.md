@@ -1,6 +1,6 @@
 # Modelo de dominio – Diagrama de clases
 
-Diagramas de clases del sistema **tal como quedó implementado**. Los nombres de clases, atributos y
+Diagramas de clases y de estados del sistema. Los nombres de clases, atributos y
 métodos son los mismos que en el código (`src/dominio/` y `src/servicios/`). Están escritos en
 [Mermaid](https://mermaid.js.org/), así que GitHub los dibuja directamente.
 
@@ -485,6 +485,18 @@ Relaciones con otros paquetes: `Stock → Producto, Ubicacion`; `OrdenCompra →
   **una** `OrdenReposicion` con origen (CD) y destino (local), sumando cantidades por producto.
 - **Compras (opcional de la consigna):** `ComprasService.sugerir_compras` calcula, para cada producto del CD
   en su mínimo, *mínimo − disponible − lo ya pedido*, agrupado por el proveedor con menor costo pactado.
+
+### Stock: pendiente, disponible y merma
+
+| Operación de `StockService` | Pendiente | Disponible | Merma | Movimiento |
+|-----------------------------|:---------:|:----------:|:-----:|------------|
+| `ingresar_compra` (solo en el CD) | | + | | `INGRESO_COMPRA` |
+| `egresar(..., tipo=EGRESO_DESPACHO)` | | − | | `EGRESO_DESPACHO` |
+| `ingresar_pendiente` | + | | | `INGRESO_PENDIENTE` |
+| `confirmar_disponible` | − | + | | `CONFIRMACION_VERIFICADO` |
+| `registrar_merma` | − | | + | `MERMA_RECHAZO` |
+| `egresar` (venta) | | − | | `EGRESO_VENTA` |
+| `reingresar` | | + | | `REINGRESO_DEVOLUCION` |
 
 ### Ciclo de vida de la orden de reposición
 
