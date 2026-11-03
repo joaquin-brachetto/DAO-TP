@@ -51,6 +51,10 @@ class GraficoBarras(tk.Canvas):
         self._barras = list(barras)
         self._redibujar()
 
+    def barras(self) -> list[Barra]:
+        """Las barras dibujadas (las usa la exportación a PDF)."""
+        return list(self._barras)
+
     def _redibujar(self) -> None:
         self.delete("all")
         ancho = max(self.winfo_width(), 400)

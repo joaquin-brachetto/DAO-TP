@@ -56,6 +56,7 @@ from src.ui.componentes import (
     mostrar_error,
     mostrar_info,
 )
+from src.ui.exportacion import agregar_botones_exportar
 from src.ui.graficos import Barra, GraficoBarras
 
 TODAS = "Todas"
@@ -763,7 +764,7 @@ class PantallaOrdenesReposicion(tk.Toplevel):
         self._ordenes = {str(o.id): o for o in ordenes}
 
         def avance(o: OrdenReposicion) -> str:
-            return " / ".join(str(sum(getattr(d, campo) for d in o.detalles))
+            return " / ".join(str(sum(getattr(d, campo) for d in o))  # Iterator: recorre la orden
                               for campo in ("cantidad_solicitada", "cantidad_preparada", "cantidad_recibida"))
 
         self.grilla.cargar(
@@ -784,7 +785,7 @@ class PantallaOrdenesReposicion(tk.Toplevel):
         if orden is None:
             return
         self.detalle.cargar(
-            orden.detalles,
+            list(orden),  # Iterator: los renglones de la orden
             lambda d: (self.catalogo.producto(d.producto_id), d.cantidad_solicitada, d.cantidad_preparada,
                        d.cantidad_recibida, d.faltante() or ""),
         )
@@ -902,6 +903,13 @@ class PantallaMovimientos(tk.Toplevel):
             alto=16,
         )
         self.grilla_detalle.pack(fill="both", expand=True)
+        agregar_botones_exportar(
+            barra, self, "R3 – Movimientos y valorización del inventario",
+            tablas=[("Entradas y salidas por tipo", self.grilla_tipos),
+                    ("Stock valorizado por ubicación", self.grilla_valor),
+                    ("Detalle de movimientos", self.grilla_detalle)],
+            grafico=self.grafico, resumen=self.resumen,
+        )
         self._consultar()
 
     def _consultar(self) -> None:
@@ -1001,6 +1009,12 @@ class PantallaTransito(tk.Toplevel):
             alto=8,
         )
         self.grilla_remitos.pack(fill="both", expand=True)
+        agregar_botones_exportar(
+            barra, self, "R4 – Tiempo promedio de tránsito CD → locales",
+            tablas=[("Tiempo de tránsito por sucursal", self.grilla_sucursales),
+                    ("Remitos del período", self.grilla_remitos)],
+            grafico=self.grafico, resumen=self.resumen,
+        )
         self._consultar()
 
     def _consultar(self) -> None:

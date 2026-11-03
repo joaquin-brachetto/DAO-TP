@@ -5,10 +5,10 @@ from decimal import Decimal
 
 import pytest
 
-from src.dominio.inventario.modelos import Referencia, TipoMovimiento
+from src.dominio.inventario.modelos import Referencia, Stock, TipoMovimiento
 from src.excepciones import EntidadNoEncontradaError, ValidacionError
 from src.persistencia.repositorio_inventario import MovimientoStockRepositorio
-from src.servicios.observadores_stock import AlertaStockMinimo, ObservadorStock
+from src.servicios.observadores_stock import AlertaStockMinimo, ObservadorStock, SujetoStock
 from src.servicios.stock_service import StockInsuficienteError, StockService
 
 REF = Referencia("TEST", 1)
@@ -271,3 +271,18 @@ def test_alerta_de_stock_minimo_guarda_una_alerta_por_producto(servicio, escenar
 
     (vigente,) = alerta.alertas()
     assert (vigente.disponible, vigente.minimo, vigente.faltante) == (3, 5, 2)
+
+
+def test_stock_service_es_el_sujeto_del_observer(servicio):
+    assert isinstance(servicio, SujetoStock)
+
+
+def test_el_sujeto_notifica_a_cada_observador_una_sola_vez(escenario):
+    sujeto = SujetoStock()
+    espia = ObservadorEspia()
+    sujeto.suscribir(espia)
+    sujeto.suscribir(espia)  # suscribirse dos veces no duplica el aviso
+
+    sujeto.notificar(Stock(escenario.producto, escenario.cd, cantidad_disponible=3))
+
+    assert espia.avisos == [(escenario.cd, escenario.producto, 3)]

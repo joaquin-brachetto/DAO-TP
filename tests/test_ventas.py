@@ -14,6 +14,7 @@ from src.dominio.ventas.modelos import (
     CondicionIva,
     DetalleDevolucion,
     TarjetaCredito,
+    crear_medio_pago,
 )
 from src.excepciones import EntidadDuplicadaError, ValidacionError
 from src.reportes.ventas_reporte import ReporteVentas
@@ -129,6 +130,34 @@ def test_pago_mixto_debe_cubrir_una_vez_el_total_base(db, servicio):
 def test_tarjeta_a_cuotas_calcula_recargo_por_strategy():
     strategy = TarjetaCredito(cuotas=4)
     assert strategy.calcular_recargo(Decimal("100.00")) == Decimal("9.00")
+
+
+@pytest.mark.parametrize(
+    "medio, cuotas, cuotas_esperadas, mensaje",
+    [
+        ("EFECTIVO", 6, 1, "Faltan datos válidos para el pago EFECTIVO."),
+        ("DEBITO", 1, 1, "Faltan datos válidos para el pago DEBITO."),
+        ("CREDITO", 6, 6, "Faltan datos válidos para el pago CREDITO."),
+        ("CREDITO", 13, 13, "La tarjeta de crédito admite entre 1 y 12 cuotas."),
+    ],
+)
+def test_cada_estrategia_define_sus_cuotas_y_su_mensaje(medio, cuotas, cuotas_esperadas, mensaje):
+    estrategia = crear_medio_pago(medio, cuotas)
+
+    assert estrategia.cuotas == cuotas_esperadas
+    assert estrategia.mensaje_invalido() == mensaje
+
+
+def test_credito_con_mas_de_12_cuotas_no_se_cobra(db, servicio):
+    pago = PagoSolicitado("CREDITO", Decimal("10.00"), {"autorizacion": "AUT-1"}, cuotas=13)
+
+    with pytest.raises(ValidacionError, match="entre 1 y 12 cuotas"):
+        servicio.registrar_venta(1, {1: 1}, [pago], vendedor="Vinchi")
+
+
+def test_medio_de_pago_desconocido():
+    with pytest.raises(ValueError):
+        crear_medio_pago("CHEQUE")
 
 
 # --- Devoluciones (V5) -----------------------------------------------------------------------
@@ -268,6 +297,30 @@ def test_reporte_r6_agrupa_por_medio_sin_duplicar_ventas_mixtas(db, servicio):
     assert {fila.medio_pago for fila in filas} == {"EFECTIVO", "TRANSFERENCIA"}
     assert [fila.cantidad_ventas for fila in filas] == [1, 1]
     assert sum((fila.total_cobrado for fila in filas), Decimal("0.00")) == Decimal("20.00")
+
+
+# --- Consultas que usa la pantalla (sin SQL en la interfaz) ------------------------------------
+
+
+def test_consultas_para_la_pantalla_de_ventas(db, servicio):
+    venta_id = servicio.registrar_venta(1, {1: 2}, [efectivo("20.00")], vendedor="Vinchi")
+
+    assert [fila["codigo"] for fila in servicio.sucursales_activas()] == ["LOC-1"]
+    assert [fila["sku"] for fila in servicio.productos_activos()] == ["SKU-1"]
+    assert servicio.producto(1)["precio_venta_actual"] == Decimal("10.00")
+    assert servicio.comprobante_de_venta(venta_id)["tipo"] == "TICKET"
+    assert [fila["id"] for fila in servicio.ventas_devolvibles()] == [venta_id]
+    [renglon] = servicio.renglones_de_venta(venta_id)
+    assert (renglon["cantidad"], renglon["sku"]) == (2, "SKU-1")
+    assert servicio.producto_de_renglon(renglon["id"])["nombre"] == "Producto 1"
+
+
+def test_una_venta_vieja_ya_no_se_ofrece_para_devolver(db, servicio):
+    servicio.registrar_venta(
+        1, {1: 1}, [efectivo("10.00")], vendedor="Vinchi", fecha_hora=datetime.now() - timedelta(days=31)
+    )
+
+    assert servicio.ventas_devolvibles() == []
 
 
 # --- Caja ------------------------------------------------------------------------------------

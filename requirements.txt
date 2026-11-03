@@ -1,3 +1,5 @@
-# El sistema usa solo la biblioteca estándar de Python (sqlite3, tkinter).
-# Para los tests se usa pytest. Instalar con:  python -m pip install -r requirements.txt
-pytest>=8.0
+# El sistema usa la biblioteca estándar de Python (sqlite3, tkinter, csv).
+# Instalar con:  python -m pip install -r requirements.txt
+pytest>=8.0          # tests
+reportlab>=4.0       # exportar reportes a PDF
+matplotlib>=3.8      # gráficos de los reportes en PDF

@@ -11,6 +11,7 @@ los dos observadores del patrón **Observer**:
 from collections.abc import Callable
 
 from src.persistencia.conexion import BaseDeDatos
+from src.persistencia.repositorio_inventario import LecturaMaestros
 from src.servicios.generador_necesidades import GeneradorNecesidades
 from src.servicios.observadores_stock import AlertaStock, AlertaStockMinimo
 from src.servicios.reposicion_service import ReposicionService
@@ -31,9 +32,9 @@ def crear_stock_service(
 
 def describir_alerta(alerta: AlertaStock, db: BaseDeDatos | None = None) -> str:
     """Texto para mostrar al usuario: «⚠ Stock mínimo: Café (Sucursal Centro): quedan 4, mínimo 5»."""
-    db = db or BaseDeDatos()
-    producto = db.consultar_uno("SELECT nombre FROM producto WHERE id = ?", (alerta.producto_id,))
-    ubicacion = db.consultar_uno("SELECT nombre FROM ubicacion WHERE id = ?", (alerta.ubicacion_id,))
+    maestros = LecturaMaestros(db or BaseDeDatos())
+    producto = maestros.producto(alerta.producto_id)
+    ubicacion = maestros.ubicacion(alerta.ubicacion_id)
     return (
         f"⚠ Stock mínimo: {producto['nombre'] if producto else alerta.producto_id} "
         f"({ubicacion['nombre'] if ubicacion else alerta.ubicacion_id}): "

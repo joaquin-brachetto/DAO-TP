@@ -38,7 +38,7 @@ from src.dominio.logistica.modelos import (
     estado_desde_nombre,
 )
 from src.excepciones import EntidadDuplicadaError, EntidadNoEncontradaError, ValidacionError
-from src.persistencia.repositorio_logistica import CambioEstadoBultoRepositorio
+from src.persistencia.repositorio_logistica import CambioEstadoBultoRepositorio, DetalleBultoRepositorio
 from src.reportes.inventario_reporte import ReporteTransito
 from src.servicios.logistica_service import EspecificacionBulto, LogisticaService
 from src.servicios.observadores_stock import AlertaStockMinimo
@@ -586,6 +586,53 @@ def test_datos_prueba_logistica_carga_escenario_completo(db):
     assert resumen["bultos en tránsito (listos para recibir)"] == 2
     with pytest.raises(ValidacionError):
         cargar_logistica_de_prueba(db)
+
+
+# =============================================================================
+# 4b. CONSULTAS DE LOS REPOSITORIOS (el servicio no arma SQL)
+# =============================================================================
+
+
+def test_listar_bultos_filtra_por_remito_estado_y_texto(logistica, orden_con_stock, escenario):
+    remito = logistica.armar_remito(
+        orden_con_stock.id,
+        [
+            EspecificacionBulto([(escenario.producto, 10)], numero_precinto="PREC-901"),
+            EspecificacionBulto([(escenario.otro_producto, 6)], numero_precinto="PREC-902"),
+        ],
+    )
+
+    assert len(logistica.listar_bultos(remito_id=remito.id)) == 2
+    assert len(logistica.listar_bultos(destino_id=escenario.sucursal)) == 2
+    assert len(logistica.listar_bultos(estado="precintado")) == 2
+    assert logistica.listar_bultos(estado=CodigoEstadoBulto.EN_TRANSITO) == []
+    [bulto] = logistica.listar_bultos(texto_busqueda="prec-902")
+    assert bulto.precinto.numero == "PREC-902"
+
+
+def test_listar_recepciones_por_destino_y_abiertas(logistica, orden_con_stock, escenario):
+    remito = logistica.armar_remito(
+        orden_con_stock.id,
+        [EspecificacionBulto([(escenario.producto, 10), (escenario.otro_producto, 6)], numero_precinto="PREC-903")],
+    )
+    logistica.registrar_despacho([remito.id], "Expreso Sur", "AB 999 CD")
+    logistica.recibir_remito(remito.id, recibido_por="encargado")
+
+    assert len(logistica.listar_recepciones(destino_id=escenario.sucursal, solo_abiertas=True)) == 1
+    assert logistica.listar_recepciones(destino_id=escenario.otra_sucursal) == []
+
+
+def test_stock_comprometido_en_remitos_que_no_salieron(db, logistica, orden_con_stock, escenario):
+    remito = logistica.armar_remito(
+        orden_con_stock.id,
+        [EspecificacionBulto([(escenario.producto, 10), (escenario.otro_producto, 6)], numero_precinto="PREC-904")],
+    )
+    detalles = DetalleBultoRepositorio(db)
+
+    assert detalles.comprometido_en_remitos_emitidos(escenario.cd) == {escenario.producto: 10, escenario.otro_producto: 6}
+
+    logistica.registrar_despacho([remito.id], "Expreso Sur", "AB 999 CD")
+    assert detalles.comprometido_en_remitos_emitidos(escenario.cd) == {}
 
 
 # =============================================================================

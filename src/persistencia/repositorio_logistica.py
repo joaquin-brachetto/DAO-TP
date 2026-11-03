@@ -123,6 +123,37 @@ class BultoRepositorio(RepositorioBase[Bulto]):
     def de_remito(self, remito_id: int) -> list[Bulto]:
         return self.buscar_por(remito_id=remito_id)
 
+    def filtrar(
+        self,
+        remito_id: int | None = None,
+        destino_id: int | None = None,
+        estado: Any = None,
+        texto_busqueda: str | None = None,
+    ) -> list[Bulto]:
+        """Bultos filtrados por remito, destino, estado o texto (código, precinto o remito)."""
+        sql = (
+            "SELECT b.* FROM bulto b "
+            "JOIN remito r ON r.id = b.remito_id "
+            "LEFT JOIN precinto p ON p.bulto_id = b.id "
+            "WHERE 1 = 1"
+        )
+        parametros: list[Any] = []
+        if remito_id is not None:
+            sql += " AND b.remito_id = ?"
+            parametros.append(remito_id)
+        if destino_id is not None:
+            sql += " AND r.destino_id = ?"
+            parametros.append(destino_id)
+        if estado is not None:
+            sql += " AND b.estado = ?"
+            parametros.append(str(estado).strip().upper())
+        if texto_busqueda and texto_busqueda.strip():
+            patron = f"%{texto_busqueda.strip().upper()}%"
+            sql += " AND (UPPER(b.codigo) LIKE ? OR UPPER(COALESCE(p.numero, '')) LIKE ? OR UPPER(r.numero) LIKE ?)"
+            parametros.extend([patron, patron, patron])
+        sql += " ORDER BY b.id DESC"
+        return [self._a_entidad(fila) for fila in self.db.consultar(sql, parametros)]
+
     def por_codigo(self, codigo: str) -> Bulto | None:
         fila = self.db.consultar_uno(
             "SELECT * FROM bulto WHERE UPPER(codigo) = UPPER(?)",
@@ -150,6 +181,19 @@ class DetalleBultoRepositorio(RepositorioBase[DetalleBulto]):
 
     def de_bulto(self, bulto_id: int) -> list[DetalleBulto]:
         return self.buscar_por(bulto_id=bulto_id)
+
+    def comprometido_en_remitos_emitidos(self, origen_id: int) -> dict[int, int]:
+        """Unidades por producto ya empaquetadas en remitos del CD que todavía no salieron."""
+        filas = self.db.consultar(
+            "SELECT db.producto_id, COALESCE(SUM(db.cantidad), 0) AS comprometido "
+            "FROM detalle_bulto db "
+            "JOIN bulto b ON b.id = db.bulto_id "
+            "JOIN remito r ON r.id = b.remito_id "
+            "WHERE r.origen_id = ? AND r.estado = 'EMITIDO' "
+            "GROUP BY db.producto_id",
+            (origen_id,),
+        )
+        return {f["producto_id"]: int(f["comprometido"]) for f in filas}
 
 
 class PrecintoRepositorio(RepositorioBase[Precinto]):
@@ -305,6 +349,18 @@ class RecepcionRepositorio(RepositorioBase[Recepcion]):
 
     def de_remito(self, remito_id: int) -> Recepcion | None:
         return self.buscar_uno_por(remito_id=remito_id)
+
+    def filtrar(self, destino_id: int | None = None, solo_abiertas: bool = False) -> list[Recepcion]:
+        """Recepciones de un local (o de todos), opcionalmente solo las que siguen abiertas."""
+        sql = "SELECT rec.* FROM recepcion rec JOIN remito rem ON rem.id = rec.remito_id WHERE 1 = 1"
+        parametros: list[Any] = []
+        if destino_id is not None:
+            sql += " AND rem.destino_id = ?"
+            parametros.append(destino_id)
+        if solo_abiertas:
+            sql += " AND rec.cerrada = 0"
+        sql += " ORDER BY rec.fecha_hora_llegada DESC, rec.id DESC"
+        return [self._a_entidad(fila) for fila in self.db.consultar(sql, parametros)]
 
 
 class ControlBultoRepositorio(RepositorioBase[ControlBulto]):

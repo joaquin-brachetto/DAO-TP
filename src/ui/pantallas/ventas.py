@@ -1,7 +1,7 @@
 """Pantallas P7: punto de venta, devoluciones, caja y reporte R6."""
 
 import tkinter as tk
-from datetime import date, datetime, timedelta
+from datetime import date
 from decimal import Decimal
 from tkinter import messagebox, ttk
 
@@ -9,7 +9,9 @@ from src.dominio.ventas.modelos import Cliente, CondicionIva, DetalleDevolucion
 from src.excepciones import ErrorDeNegocio
 from src.persistencia.conexion import BaseDeDatos
 from src.reportes.ventas_reporte import FilaReporteVentas, ReporteVentas
+from src.reportes.exportacion import GraficoReporte
 from src.servicios.ventas_service import PagoSolicitado, VentasService
+from src.ui.exportacion import agregar_botones_exportar
 
 
 class PantallaVentas(tk.Toplevel):
@@ -56,9 +58,7 @@ class PantallaVentas(tk.Toplevel):
                 break
 
     def _sucursales_activas(self) -> list[tuple[str, int]]:
-        filas = self.db.consultar(
-            "SELECT id, codigo, nombre FROM ubicacion WHERE tipo = 'SUCURSAL' AND activa = 1 ORDER BY nombre"
-        )
+        filas = self.service.sucursales_activas()
         return [(f"{fila['codigo']} - {fila['nombre']}", int(fila["id"])) for fila in filas]
 
     def _cargar_combo_sucursales(self, combo: ttk.Combobox, incluir_todas: bool = False) -> dict[str, int]:
@@ -79,9 +79,7 @@ class PantallaVentas(tk.Toplevel):
         self.vendedor = tk.StringVar()
         self.cliente_id = tk.StringVar()
         self.producto_combo = ttk.Combobox(panel, state="readonly", width=50)
-        filas = self.db.consultar(
-            "SELECT id, sku, nombre FROM producto WHERE activo = 1 ORDER BY nombre"
-        )
+        filas = self.service.productos_activos()
         self.productos = {f"{fila['sku']} - {fila['nombre']} (#{fila['id']})": int(fila["id"]) for fila in filas}
         self.producto_combo.configure(values=list(self.productos))
         if self.productos:
@@ -153,9 +151,7 @@ class PantallaVentas(tk.Toplevel):
         self.tabla_items.delete(*self.tabla_items.get_children())
         total = Decimal("0.00")
         for producto_id, cantidad in self.items.items():
-            producto = self.db.consultar_uno(
-                "SELECT sku, nombre, precio_venta_actual FROM producto WHERE id = ?", (producto_id,)
-            )
+            producto = self.service.producto(producto_id)
             subtotal = Decimal(producto["precio_venta_actual"]) * cantidad
             total += subtotal
             self.tabla_items.insert(
@@ -235,9 +231,7 @@ class PantallaVentas(tk.Toplevel):
             venta_id = self.service.registrar_venta(
                 ubicacion_id, self.items, self.pagos, cliente_id, self.vendedor.get()
             )
-            comprobante = self.db.consultar_uno(
-                "SELECT tipo, punto_venta, numero, total FROM comprobante WHERE venta_id = ?", (venta_id,)
-            )
+            comprobante = self.service.comprobante_de_venta(venta_id)
             detalle_comprobante = (
                 f"{comprobante['tipo']} {comprobante['punto_venta']:04d}-"
                 f"{comprobante['numero']:08d}\nTotal: ${comprobante['total']:.2f}"
@@ -285,14 +279,7 @@ class PantallaVentas(tk.Toplevel):
         self._cargar_ventas_devolucion()
 
     def _cargar_ventas_devolucion(self) -> None:
-        fecha_desde = (datetime.now() - timedelta(days=self.service.plazo_devolucion_dias)).isoformat(sep=" ")
-        filas = self.db.consultar(
-            "SELECT v.id, v.numero, v.fecha_hora, v.total, u.nombre AS sucursal, c.tipo, c.numero AS numero_comprobante "
-            "FROM venta v JOIN ubicacion u ON u.id = v.ubicacion_id "
-            "JOIN comprobante c ON c.venta_id = v.id "
-            "WHERE v.estado = 'CONFIRMADA' AND v.fecha_hora >= ? ORDER BY v.fecha_hora DESC",
-            (fecha_desde,),
-        )
+        filas = self.service.ventas_devolvibles()
         self.ventas_devolucion = {
             f"Venta {fila['numero']} · {fila['sucursal']} · {fila['fecha_hora']} · "
             f"{fila['tipo']} {fila['numero_comprobante']} · ${fila['total']:.2f} (id {fila['id']})": int(fila["id"])
@@ -317,11 +304,7 @@ class PantallaVentas(tk.Toplevel):
             self.renglon_combo.configure(values=[])
             self.renglon_combo.set("")
             return
-        filas = self.db.consultar(
-            "SELECT d.id, d.cantidad, d.cantidad_devuelta, p.sku, p.nombre "
-            "FROM detalle_venta d JOIN producto p ON p.id = d.producto_id "
-            "WHERE d.venta_id = ? ORDER BY d.id", (venta_id,),
-        )
+        filas = self.service.renglones_de_venta(venta_id)
         for fila in filas:
             restantes = int(fila["cantidad"]) - int(fila["cantidad_devuelta"])
             if restantes <= 0:
@@ -391,10 +374,7 @@ class PantallaVentas(tk.Toplevel):
         self.detalles_pendientes_devolucion.pop(indice)
         self.tabla_devolucion.delete(*self.tabla_devolucion.get_children())
         for nuevo_indice, detalle in enumerate(self.detalles_pendientes_devolucion):
-            fila = self.db.consultar_uno(
-                "SELECT p.sku, p.nombre FROM detalle_venta d JOIN producto p ON p.id = d.producto_id "
-                "WHERE d.id = ?", (detalle.detalle_venta_id,),
-            )
+            fila = self.service.producto_de_renglon(detalle.detalle_venta_id)
             self.tabla_devolucion.insert(
                 "", "end", iid=str(nuevo_indice),
                 values=(f"{fila['sku']} · {fila['nombre']}", detalle.cantidad,
@@ -490,6 +470,16 @@ class PantallaVentas(tk.Toplevel):
         self.grafico = tk.Canvas(contenido, height=220, background="#f4f5f2", highlightthickness=0)
         contenido.add(tabla_frame, weight=3)
         contenido.add(self.grafico, weight=2)
+        self._filas_reporte: list[FilaReporteVentas] = []
+        agregar_botones_exportar(
+            filtros, self, "R6 – Ventas e ingresos por período, local y medio de pago",
+            tablas=[("Ventas por sucursal y medio de pago", self.tabla_reporte)],
+            grafico=lambda: GraficoReporte(
+                "Total cobrado por sucursal y medio de pago",
+                [f"{f.sucursal} · {f.medio_pago}" for f in self._filas_reporte],
+                [float(f.total_cobrado) for f in self._filas_reporte],
+            ),
+        )
 
     def _consultar_reporte(self) -> None:
         try:
@@ -503,6 +493,7 @@ class PantallaVentas(tk.Toplevel):
             self._error(str(error))
 
     def _dibujar_reporte(self, filas: list[FilaReporteVentas]) -> None:
+        self._filas_reporte = list(filas)  # lo que se exporta a PDF / CSV
         self.tabla_reporte.delete(*self.tabla_reporte.get_children())
         for indice, fila in enumerate(filas):
             self.tabla_reporte.insert(
@@ -559,4 +550,4 @@ def abrir_devoluciones(padre: tk.Misc) -> None:
 
 def abrir_caja(padre: tk.Misc) -> None:
     """Abre Ventas directamente en la administración de caja (P7)."""
-    PantallaVentas(padre, "Caja")
+    PantallaVentas(padre, "Caja")

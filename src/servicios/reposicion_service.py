@@ -261,9 +261,9 @@ class ReposicionService:
 
     @staticmethod
     def _detalle(orden: OrdenReposicion, producto_id: int) -> DetalleOrdenReposicion:
-        for detalle in orden.detalles:
-            if detalle.producto_id == producto_id:
-                return detalle
+        detalle = orden.detalle_de(producto_id)
+        if detalle is not None:
+            return detalle
         raise EntidadNoEncontradaError(f"La orden {orden.numero} no incluye el producto {producto_id}.")
 
     def _exigir_sucursal(self, sucursal_id: int) -> None:

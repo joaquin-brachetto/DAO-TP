@@ -297,10 +297,13 @@ classDiagram
         REINGRESO_DEVOLUCION
         AJUSTE
     }
-    class StockService {
-        -observadores: list~ObservadorStock~
+    class SujetoStock {
+        -_observadores: list~ObservadorStock~
         +suscribir(observador)
         +desuscribir(observador)
+        +notificar(stock)
+    }
+    class StockService {
         +stock_disponible(ubicacion_id, producto_id) int
         +stock_de(ubicacion_id, producto_id) Stock
         +listar_ubicacion(ubicacion_id) list~Stock~
@@ -310,7 +313,6 @@ classDiagram
         +registrar_merma(ubicacion_id, producto_id, cantidad, ref) Stock
         +egresar(ubicacion_id, producto_id, cantidad, ref, tipo) Stock
         +reingresar(ubicacion_id, producto_id, cantidad, ref) Stock
-        -_notificar(stock)
     }
     class ObservadorStock {
         <<abstract>>
@@ -331,7 +333,8 @@ classDiagram
     StockService ..> Stock : gestiona
     StockService ..> MovimientoStock : registra
     StockService ..> Referencia : recibe
-    StockService o-- "*" ObservadorStock : notifica
+    SujetoStock <|-- StockService
+    SujetoStock o-- "*" ObservadorStock : notifica
     ObservadorStock <|-- AlertaStockMinimo
     ObservadorStock <|-- GeneradorNecesidades
 ```
@@ -392,7 +395,19 @@ classDiagram
         +destino_id: int
         +estado: EstadoOrdenReposicion
         +detalles: list~DetalleOrdenReposicion~
+        +#95;#95;iter#95;#95;() IteradorDetalles
+        +faltantes() IteradorFaltantes
+        +detalle_de(producto_id) DetalleOrdenReposicion
         +esta_completa() bool
+    }
+    class IteradorDetalles {
+        +detalles: list~DetalleOrdenReposicion~
+        +posicion: int
+        +#95;#95;iter#95;#95;() IteradorDetalles
+        +#95;#95;next#95;#95;() DetalleOrdenReposicion
+    }
+    class IteradorFaltantes {
+        +#95;#95;next#95;#95;() DetalleOrdenReposicion
     }
     class DetalleOrdenReposicion {
         +producto_id: int
@@ -437,6 +452,8 @@ classDiagram
     OrdenReposicion "1" o-- "1..*" NecesidadReposicion : consolida
     OrdenReposicion "1" *-- "1..*" DetalleOrdenReposicion
     OrdenReposicion --> EstadoOrdenReposicion
+    OrdenReposicion ..> IteradorDetalles : crea
+    IteradorDetalles <|-- IteradorFaltantes
     ComprasService ..> OrdenCompra
     ComprasService ..> StockService : ingresar_compra
     ReposicionService ..> NecesidadReposicion
@@ -455,10 +472,15 @@ Relaciones con otros paquetes: `Stock → Producto, Ubicacion`; `OrdenCompra →
 - **Trazabilidad:** todo cambio de stock pasa por `StockService` y deja un `MovimientoStock`. Los movimientos
   no se pueden modificar ni borrar (triggers en la base) y alimentan los reportes de movimientos,
   valorización y tiempo de tránsito.
-- **Patrón Observer:** `StockService` es el *sujeto*. Después de cada egreso consulta `StockMinimoService` y,
-  si el producto quedó en su mínimo, notifica a todos los `ObservadorStock` suscriptos.
+- **Patrón Observer:** `SujetoStock` es el *sujeto* (mantiene la lista de observadores y los notifica) y
+  `StockService` hereda de él. Después de cada egreso consulta `StockMinimoService` y, si el producto quedó en
+  su mínimo, notifica a todos los `ObservadorStock` suscriptos.
   `AlertaStockMinimo` muestra la alerta en pantalla y `GeneradorNecesidades` crea una
   `NecesidadReposicion` **automática** para el local (sin duplicar una que ya esté abierta).
+- **Patrón Iterator:** `OrdenReposicion` se recorre con `for detalle in orden`, sin exponer su lista interna:
+  `__iter__()` crea un `IteradorDetalles` y el `for` llama a `__next__()` hasta `StopIteration`.
+  `orden.faltantes()` devuelve un segundo iterador, `IteradorFaltantes` (hereda del primero), que entrega solo
+  los renglones a los que les falta mercadería; con él se decide si la orden cierra completa o con faltantes.
 - **P3 (consolidación):** `ReposicionService.consolidar` junta las necesidades pendientes de **un** local en
   **una** `OrdenReposicion` con origen (CD) y destino (local), sumando cantidades por producto.
 - **Compras (opcional de la consigna):** `ComprasService.sugerir_compras` calcula, para cada producto del CD
@@ -751,8 +773,10 @@ classDiagram
     class MedioPago {
         <<abstract>>
         +tipo: str
+        +cuotas: int = 1
         +calcular_recargo(monto)* Decimal
         +validar(datos)* bool
+        +mensaje_invalido() str
         +permite_reintegro() bool
     }
     class Efectivo
@@ -760,6 +784,7 @@ classDiagram
     class TarjetaCredito {
         +cuotas: int
         +recargo_por_cuota: Decimal
+        +mensaje_invalido() str
     }
     class Transferencia
 
@@ -768,7 +793,7 @@ classDiagram
         +numero: int
         +fecha_emision: datetime
         +total: Decimal
-        +tipo() str
+        +tipo: str
     }
     class Ticket
     class FacturaA
@@ -868,8 +893,9 @@ Relaciones con otros paquetes: `Venta → Sucursal`; `DetalleVenta → Producto`
 - `DetalleVenta` guarda **el precio y el costo del momento de la venta**, así el reporte de margen no cambia
   si después se actualiza el producto.
 - **Patrón Strategy:** cada `MedioPago` calcula su recargo y valida sus datos a su manera (por ejemplo,
-  `TarjetaCredito` suma un recargo por cuota); la venta no pregunta "¿es tarjeta?". `crear_medio_pago()` elige
-  la estrategia según el medio indicado.
+  `TarjetaCredito` suma un recargo por cuota y explica por qué un pago no es válido); la venta no pregunta
+  "¿es tarjeta?": usa `medio.validar()`, `medio.mensaje_invalido()` y `medio.cuotas` de la estrategia que le toque.
+  `crear_medio_pago()` elige la estrategia con un diccionario de funciones lambda, sin `if`.
 - **Patrón Factory:** `ComprobanteFactory` decide Ticket, Factura A o Factura B según la condición frente al IVA
   del cliente, y crea la Nota de crédito de las devoluciones.
 - **V5 (devoluciones):** una `Devolucion` siempre apunta a una `Venta` registrada; por cada renglón,
@@ -939,7 +965,9 @@ classDiagram
 |--------|-------|----------|
 | **Singleton** | `BaseDeDatos` (`persistencia/conexion.py`) | Una sola conexión compartida y transacciones anidadas |
 | **Repository** | `RepositorioBase` y sus subclases (`persistencia/`) | Separar el dominio del SQL |
-| **Observer** | `StockService` → `ObservadorStock` (`servicios/stock_service.py`, `observadores_stock.py`, `generador_necesidades.py`) | Avisar y generar necesidades cuando un producto llega a su stock mínimo |
+| **Observer** | `SujetoStock` (y `StockService`, que hereda de él) → `ObservadorStock` (`servicios/observadores_stock.py`, `stock_service.py`, `generador_necesidades.py`) | Avisar y generar necesidades cuando un producto llega a su stock mínimo |
 | **State** | `Bulto` → `EstadoBulto` (`dominio/logistica/modelos.py`) | Ciclo de vida del bulto con transiciones válidas |
 | **Strategy** | `MedioPago` y sus medios (`dominio/ventas/modelos.py`) | Recargo y validación propios de cada medio de pago |
+| **Strategy** | `ExportadorReporte` → `ExportadorPDF` y `ExportadorCSV` (`reportes/exportacion.py`) | Exportar cualquier reporte al formato elegido |
+| **Iterator** | `OrdenReposicion` → `IteradorDetalles` e `IteradorFaltantes` (`dominio/inventario/modelos.py`) | Recorrer los renglones de una orden (todos o solo los que tienen faltante) |
 | **Factory** | `ComprobanteFactory` (`dominio/ventas/modelos.py`) | Elegir y crear el tipo de comprobante |

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
@@ -85,6 +86,7 @@ class MedioPago(ABC):
     """Strategy: cada forma de pago valida datos y calcula su recargo."""
 
     tipo: str
+    cuotas: int = 1  # solo la tarjeta de crédito la redefine
 
     @abstractmethod
     def calcular_recargo(self, monto: Decimal) -> Decimal:
@@ -93,6 +95,10 @@ class MedioPago(ABC):
     @abstractmethod
     def validar(self, datos: dict[str, str]) -> bool:
         """Indica si los datos operativos del pago alcanzan para registrarlo."""
+
+    def mensaje_invalido(self) -> str:
+        """Mensaje para el usuario cuando `validar` devuelve False; cada medio puede redefinirlo."""
+        return f"Faltan datos válidos para el pago {self.tipo}."
 
     def permite_reintegro(self) -> bool:
         """Indica si el medio puede utilizarse para devolver dinero."""
@@ -138,6 +144,11 @@ class TarjetaCredito(MedioPago):
     def validar(self, datos: dict[str, str]) -> bool:
         return 1 <= self.cuotas <= 12 and bool(datos.get("autorizacion", "").strip())
 
+    def mensaje_invalido(self) -> str:
+        if not 1 <= self.cuotas <= 12:
+            return "La tarjeta de crédito admite entre 1 y 12 cuotas."
+        return super().mensaje_invalido()
+
 
 class Transferencia(MedioPago):
     """Transferencia: requiere registrar una referencia bancaria (P7)."""
@@ -153,17 +164,17 @@ class Transferencia(MedioPago):
 
 def crear_medio_pago(tipo: str, cuotas: int = 1) -> MedioPago:
     """Crea la estrategia solicitada para un cobro mixto o individual (P7)."""
-    estrategias: dict[str, type[MedioPago]] = {
-        "EFECTIVO": Efectivo,
-        "DEBITO": TarjetaDebito,
-        "CREDITO": TarjetaCredito,
-        "TRANSFERENCIA": Transferencia,
+    estrategias: dict[str, Callable[[int], MedioPago]] = {
+        "EFECTIVO": lambda _cuotas: Efectivo(),
+        "DEBITO": lambda _cuotas: TarjetaDebito(),
+        "CREDITO": lambda cuotas: TarjetaCredito(cuotas),
+        "TRANSFERENCIA": lambda _cuotas: Transferencia(),
     }
     try:
-        estrategia = estrategias[tipo.upper()]
+        crear = estrategias[tipo.upper()]
     except KeyError as error:
         raise ValueError(f"Medio de pago no reconocido: {tipo}.") from error
-    return TarjetaCredito(cuotas) if estrategia is TarjetaCredito else estrategia()
+    return crear(cuotas)
 
 
 @dataclass
@@ -322,4 +333,4 @@ class Venta:
 
     def total_cobrado(self) -> Decimal:
         """Importe final cobrado incluyendo recargos y pagos mixtos."""
-        return dinero(sum((pago.monto + pago.recargo for pago in self.cobros), Decimal("0.00")))
+        return dinero(sum((pago.monto + pago.recargo for pago in self.cobros), Decimal("0.00")))

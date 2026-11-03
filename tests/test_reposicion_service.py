@@ -1,8 +1,18 @@
-"""Tests de ReposicionService y GeneradorNecesidades (pohlsi): P3 y patrón Observer."""
+"""Tests de ReposicionService y GeneradorNecesidades (pohlsi): P3 y patrones Observer e Iterator."""
 
 import pytest
 
-from src.dominio.inventario.modelos import EstadoNecesidad, EstadoOrdenReposicion, OrigenNecesidad, Referencia
+from datetime import datetime
+
+from src.dominio.inventario.modelos import (
+    DetalleOrdenReposicion,
+    EstadoNecesidad,
+    EstadoOrdenReposicion,
+    IteradorDetalles,
+    OrdenReposicion,
+    OrigenNecesidad,
+    Referencia,
+)
 from src.excepciones import EntidadNoEncontradaError, ValidacionError
 from src.servicios.generador_necesidades import GeneradorNecesidades
 from src.servicios.reposicion_service import ReposicionService
@@ -293,3 +303,51 @@ def test_si_el_cd_baja_del_minimo_no_se_genera_reposicion(conectado, reposicion,
     conectado.egresar(escenario.cd, escenario.producto, 8, REF)
 
     assert reposicion.listar_necesidades() == []
+
+
+# --- Patrón Iterator sobre la orden de reposición ------------------------------------------------
+
+
+@pytest.fixture
+def orden_en_memoria():
+    """Orden con tres renglones: uno completo, uno con faltante parcial y uno sin recibir."""
+    return OrdenReposicion(1, datetime(2026, 11, 1), origen_id=1, destino_id=2, detalles=[
+        DetalleOrdenReposicion(10, 5, cantidad_preparada=5, cantidad_recibida=5),
+        DetalleOrdenReposicion(20, 4, cantidad_preparada=4, cantidad_recibida=1),
+        DetalleOrdenReposicion(30, 3),
+    ])
+
+
+def test_la_orden_se_recorre_con_for(orden_en_memoria):
+    assert [detalle.producto_id for detalle in orden_en_memoria] == [10, 20, 30]
+
+
+def test_el_iterador_avisa_el_final_con_stop_iteration(orden_en_memoria):
+    iterador = iter(orden_en_memoria)
+
+    assert isinstance(iterador, IteradorDetalles)
+    assert [next(iterador).producto_id for _ in range(3)] == [10, 20, 30]
+    with pytest.raises(StopIteration):
+        next(iterador)
+
+
+def test_el_iterador_de_faltantes_saltea_los_renglones_completos(orden_en_memoria):
+    assert [(d.producto_id, d.faltante()) for d in orden_en_memoria.faltantes()] == [(20, 3), (30, 3)]
+
+
+def test_cada_recorrido_empieza_de_nuevo(orden_en_memoria):
+    assert len(list(orden_en_memoria)) == len(list(orden_en_memoria)) == 3
+
+
+def test_orden_completa_si_el_iterador_de_faltantes_no_entrega_nada(orden_en_memoria):
+    assert not orden_en_memoria.esta_completa()
+    for detalle in orden_en_memoria:
+        detalle.cantidad_recibida = detalle.cantidad_solicitada
+
+    assert list(orden_en_memoria.faltantes()) == []
+    assert orden_en_memoria.esta_completa()
+
+
+def test_detalle_de_un_producto(orden_en_memoria):
+    assert orden_en_memoria.detalle_de(20).cantidad_solicitada == 4
+    assert orden_en_memoria.detalle_de(99) is None

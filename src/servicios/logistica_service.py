@@ -162,29 +162,8 @@ class LogisticaService:
         estado: CodigoEstadoBulto | str | None = None,
         texto_busqueda: str | None = None,
     ) -> list[Bulto]:
-        sql = (
-            "SELECT b.* FROM bulto b "
-            "JOIN remito r ON r.id = b.remito_id "
-            "LEFT JOIN precinto p ON p.bulto_id = b.id "
-            "WHERE 1 = 1"
-        )
-        parametros: list[Any] = []
-        if remito_id is not None:
-            sql += " AND b.remito_id = ?"
-            parametros.append(remito_id)
-        if destino_id is not None:
-            sql += " AND r.destino_id = ?"
-            parametros.append(destino_id)
-        if estado is not None:
-            sql += " AND b.estado = ?"
-            parametros.append(str(estado).strip().upper())
-        if texto_busqueda and texto_busqueda.strip():
-            patron = f"%{texto_busqueda.strip().upper()}%"
-            sql += " AND (UPPER(b.codigo) LIKE ? OR UPPER(COALESCE(p.numero, '')) LIKE ? OR UPPER(r.numero) LIKE ?)"
-            parametros.extend([patron, patron, patron])
-        sql += " ORDER BY b.id DESC"
-        filas = self.db.consultar(sql, parametros)
-        return [self._hidratar_bulto(self._bultos._a_entidad(fila)) for fila in filas]
+        bultos = self._bultos.filtrar(remito_id, destino_id, estado, texto_busqueda)
+        return [self._hidratar_bulto(bulto) for bulto in bultos]
 
     def historial_bulto(self, bulto_id: int) -> tuple[CambioEstadoBulto, ...]:
         """Devuelve la línea de tiempo inmutable de cambios de estado del bulto (V2)."""
@@ -231,16 +210,8 @@ class LogisticaService:
     def listar_recepciones(
         self, destino_id: int | None = None, solo_abiertas: bool = False
     ) -> list[Recepcion]:
-        sql = "SELECT rec.* FROM recepcion rec JOIN remito rem ON rem.id = rec.remito_id WHERE 1 = 1"
-        parametros: list[Any] = []
-        if destino_id is not None:
-            sql += " AND rem.destino_id = ?"
-            parametros.append(destino_id)
-        if solo_abiertas:
-            sql += " AND rec.cerrada = 0"
-        sql += " ORDER BY rec.fecha_hora_llegada DESC, rec.id DESC"
-        filas = self.db.consultar(sql, parametros)
-        return [self._hidratar_recepcion(self._recepciones._a_entidad(f)) for f in filas]
+        recepciones = self._recepciones.filtrar(destino_id, solo_abiertas)
+        return [self._hidratar_recepcion(recepcion) for recepcion in recepciones]
 
     # === P4: Empaquetado, Armado de Bultos, Precintado y Emisión de Remito =====================
 
@@ -795,16 +766,7 @@ class LogisticaService:
         return dict(agrupados)
 
     def _stock_comprometido_en_remitos_emitidos(self, origen_id: int) -> dict[int, int]:
-        filas = self.db.consultar(
-            "SELECT db.producto_id, COALESCE(SUM(db.cantidad), 0) AS comprometido "
-            "FROM detalle_bulto db "
-            "JOIN bulto b ON b.id = db.bulto_id "
-            "JOIN remito r ON r.id = b.remito_id "
-            "WHERE r.origen_id = ? AND r.estado = 'EMITIDO' "
-            "GROUP BY db.producto_id",
-            (origen_id,),
-        )
-        return {f["producto_id"]: int(f["comprometido"]) for f in filas}
+        return self._detalles_bulto.comprometido_en_remitos_emitidos(origen_id)
 
     @staticmethod
     def _convertir_especificacion_bulto(

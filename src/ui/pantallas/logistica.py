@@ -55,6 +55,7 @@ from src.ui.componentes import (
     mostrar_error,
     mostrar_info,
 )
+from src.ui.exportacion import agregar_botones_exportar
 from src.ui.graficos import Barra, GraficoBarras
 from src.ui.pantallas.inventario import TODAS, TODOS, _a_fecha, _Catalogo, _combo, _stock_service
 
@@ -1450,6 +1451,13 @@ class PantallaReporteRechazos(tk.Toplevel):
             alto=15,
         )
         self.grilla_productos.pack(fill="both", expand=True)
+        agregar_botones_exportar(
+            barra, self, "R5 – Bultos rechazados y mermas por rotura de precinto",
+            tablas=[("Resumen por sucursal", self.grilla_sucursales),
+                    ("Detalle de bultos rechazados", self.grilla_bultos),
+                    ("Mermas valorizadas por producto", self.grilla_productos)],
+            grafico=self.grafico, resumen=self.resumen,
+        )
 
         self._consultar()
 

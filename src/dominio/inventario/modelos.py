@@ -172,6 +172,38 @@ class DetalleOrdenReposicion:
         return max(self.cantidad_solicitada - self.cantidad_recibida, 0)
 
 
+class IteradorDetalles:
+    """Patrón **Iterator**: recorre los renglones de una orden sin exponer cómo se guardan.
+
+    `for detalle in orden:` llama a `orden.__iter__()`, que crea este iterador, y
+    después a `__next__()` hasta que se lanza `StopIteration`.
+    """
+
+    def __init__(self, detalles: list[DetalleOrdenReposicion]) -> None:
+        self.detalles = detalles
+        self.posicion = 0
+
+    def __iter__(self) -> "IteradorDetalles":
+        return self
+
+    def __next__(self) -> DetalleOrdenReposicion:
+        if self.posicion >= len(self.detalles):
+            raise StopIteration
+        detalle = self.detalles[self.posicion]
+        self.posicion += 1
+        return detalle
+
+
+class IteradorFaltantes(IteradorDetalles):
+    """Segundo iterador: entrega solamente los renglones a los que todavía les falta mercadería."""
+
+    def __next__(self) -> DetalleOrdenReposicion:
+        detalle = super().__next__()  # el siguiente renglón (o StopIteration si no quedan)
+        while detalle.faltante() == 0:
+            detalle = super().__next__()
+        return detalle
+
+
 @dataclass
 class OrdenReposicion:
     numero: int
@@ -182,6 +214,25 @@ class OrdenReposicion:
     detalles: list[DetalleOrdenReposicion] = field(default_factory=list)
     id: int | None = None
 
+    def __iter__(self) -> IteradorDetalles:
+        """Permite recorrer la orden con `for detalle in orden`."""
+        return IteradorDetalles(self.detalles)
+
+    def __str__(self) -> str:
+        return f"Orden de reposición {self.numero} ({nombre_estado(self.estado)})"
+
+    def faltantes(self) -> IteradorFaltantes:
+        """Recorre solo los renglones con faltante: `for detalle in orden.faltantes()`."""
+        return IteradorFaltantes(self.detalles)
+
+    def detalle_de(self, producto_id: int) -> DetalleOrdenReposicion | None:
+        for detalle in self:
+            if detalle.producto_id == producto_id:
+                return detalle
+        return None
+
     def esta_completa(self) -> bool:
-        """¿Se recibió y verificó todo lo que se pidió?"""
-        return all(detalle.faltante() == 0 for detalle in self.detalles)
+        """¿Se recibió y verificó todo lo que se pidió? Sí, si no queda ningún renglón con faltante."""
+        for _ in self.faltantes():
+            return False
+        return True
