@@ -9,7 +9,7 @@ Es el contrato que usan logística (turco) y ventas (vinchi):
     egresar(ubicacion_id, producto_id, cant, ref)              venta / despacho (valida que alcance)
     reingresar(ubicacion_id, producto_id, cant, ref)           devolución
 
-Además: `ingresar_compra` (el proveedor entrega al CD) y `suscribir` (Observer).
+Además: `ingresar_compra` (el proveedor entrega al CD) y `suscribir` (Observer, heredado de `SujetoStock`).
 
 `ref` es el documento que originó el movimiento: una `Referencia("VENTA", 15)`
 o, más simple, un texto con el tipo de documento ("VENTA").
@@ -18,11 +18,11 @@ Cada operación actualiza el stock y agrega un `MovimientoStock` en la misma
 transacción. Si el llamador ya abrió una (por ejemplo, la confirmación de una
 venta), el servicio se suma a ella: si algo falla, se deshace todo junto.
 
-Patrón **Observer**: después de cada egreso, si el disponible llegó al mínimo
-(que define maestros), se notifica a los `ObservadorStock` suscriptos.
+Patrón **Observer**: `StockService` hereda de `SujetoStock`. Después de cada
+egreso, si el disponible llegó al mínimo (que define maestros), se notifica a los
+`ObservadorStock` suscriptos.
 """
 
-import logging
 from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
@@ -32,10 +32,8 @@ from src.excepciones import EntidadNoEncontradaError, ValidacionError
 from src.persistencia.conexion import BaseDeDatos
 from src.persistencia.repositorio_inventario import LecturaMaestros, MovimientoStockRepositorio, StockRepositorio
 from src.servicios.maestros_service import StockMinimoService
-from src.servicios.observadores_stock import ObservadorStock
+from src.servicios.observadores_stock import SujetoStock
 from src.servicios.validaciones_inventario import decimal_no_negativo, entero_positivo
-
-registro = logging.getLogger(__name__)
 
 TIPOS_DE_EGRESO = (TipoMovimiento.EGRESO_VENTA, TipoMovimiento.EGRESO_DESPACHO)
 
@@ -44,7 +42,7 @@ class StockInsuficienteError(ValidacionError):
     """No alcanza el stock disponible (o pendiente de verificación) para la operación."""
 
 
-class StockService:
+class StockService(SujetoStock):
     def __init__(
         self,
         db: BaseDeDatos | None = None,
@@ -52,30 +50,13 @@ class StockService:
         ahora: Callable[[], datetime] = datetime.now,
     ) -> None:
         """`ahora` da la fecha y hora de cada movimiento (los tests la fijan, como en ProductoService)."""
+        super().__init__()  # SujetoStock: arranca sin observadores
         self.db = db or BaseDeDatos()
         self._ahora = ahora
         self._stock = StockRepositorio(self.db)
         self._movimientos = MovimientoStockRepositorio(self.db)
         self._maestros = LecturaMaestros(self.db)
         self.minimos = minimos or StockMinimoService(self.db)
-        self._observadores: list[ObservadorStock] = []
-
-    # --- Observer (el servicio es el Subject) ------------------------------------
-
-    def suscribir(self, observador: ObservadorStock) -> None:
-        if observador not in self._observadores:
-            self._observadores.append(observador)
-
-    def desuscribir(self, observador: ObservadorStock) -> None:
-        if observador in self._observadores:
-            self._observadores.remove(observador)
-
-    def _notificar(self, stock: Stock) -> None:
-        for observador in list(self._observadores):
-            try:
-                observador.stock_bajo_minimo(stock)
-            except Exception:  # un observador con problemas no debe frenar una venta o un despacho
-                registro.exception("Falló el observador %r al notificar stock bajo el mínimo", observador)
 
     # --- Consultas -----------------------------------------------------------------
 
@@ -145,7 +126,7 @@ class StockService:
         with self.db.transaccion():
             stock = self._mover(ubicacion_id, producto_id, cantidad, ref, tipo, disponible=-1)
             if self.minimos.esta_en_minimo(producto_id, ubicacion_id, stock.cantidad_disponible):
-                self._notificar(stock)
+                self.notificar(stock)  # Observer: heredado de SujetoStock
         return stock
 
     def reingresar(self, ubicacion_id: int, producto_id: int, cantidad: int, ref: Referencia | str) -> Stock:

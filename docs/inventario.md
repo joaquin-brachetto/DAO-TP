@@ -41,12 +41,14 @@ Publica el `StockService`, por el que pasa **todo** cambio de stock del sistema 
 
 ```mermaid
 classDiagram
-    class StockService {
+    class SujetoStock {
         -observadores: list~ObservadorStock~
         +suscribir(observador)
         +desuscribir(observador)
+        +notificar(stock)
+    }
+    class StockService {
         +egresar(ubicacion, producto, cant, ref)
-        -notificar(stock)
     }
     class ObservadorStock {
         <<abstract>>
@@ -59,13 +61,15 @@ classDiagram
     class GeneradorNecesidades {
         +stock_bajo_minimo(stock)
     }
-    StockService o-- "*" ObservadorStock : notifica
+    SujetoStock <|-- StockService
+    SujetoStock o-- "*" ObservadorStock : notifica
     ObservadorStock <|-- AlertaStockMinimo
     ObservadorStock <|-- GeneradorNecesidades
     GeneradorNecesidades ..> ReposicionService : crea necesidad
 ```
 
-- **Subject:** `StockService`. Después de cada egreso (venta o despacho) consulta a maestros
+- **Subject:** `SujetoStock` mantiene la lista de observadores y los notifica; `StockService` hereda de él
+  (igual que `ListaPrecios(Subject)` en la filmina de patrones). Después de cada egreso (venta o despacho) consulta a maestros
   `StockMinimoService.esta_en_minimo(...)`; si el disponible llegó al mínimo, notifica a todos los suscriptos.
   No sabe qué hace cada uno con el aviso.
 - **Observer:** `ObservadorStock` es una clase abstracta (`ABC` + `@abstractmethod`).

@@ -1,12 +1,16 @@
-"""Patrón **Observer** del inventario (pohlsi).
+"""Patrón **Observer** del inventario.
 
-- Subject:   `StockService` (mantiene la lista de observadores y los notifica).
-- Observer:  `ObservadorStock` (interfaz común para ser notificado).
+- Subject:   `SujetoStock` mantiene la lista de observadores y los notifica.
+             `StockService` hereda de él.
+- Observer:  `ObservadorStock` es la interfaz común para ser notificado.
+             `AlertaStockMinimo` y `GeneradorNecesidades` la implementan.
 
-El servicio no sabe qué hace cada observador con el aviso: eso es lo que los
-mantiene desacoplados. Se suscriben con `stock_service.suscribir(observador)`.
+El sujeto no sabe qué hace cada observador con el aviso: eso es lo que los
+mantiene desacoplados (relación 1 a N sin dependencia rígida). Se suscriben con
+`stock_service.suscribir(observador)`.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -14,13 +18,37 @@ from datetime import datetime
 
 from src.dominio.inventario.modelos import Stock
 
+registro = logging.getLogger(__name__)
+
 
 class ObservadorStock(ABC):
-    """Interfaz de quien quiere enterarse de que un producto quedó en su stock mínimo."""
+    """Observer: interfaz de quien quiere enterarse de que un producto quedó en su stock mínimo."""
 
     @abstractmethod
     def stock_bajo_minimo(self, stock: Stock) -> None:
         """Se llama después de un egreso, cuando el disponible llegó al mínimo o quedó por debajo."""
+
+
+class SujetoStock:
+    """Subject: mantiene la lista de observadores y les avisa cuando un producto llega a su mínimo."""
+
+    def __init__(self) -> None:
+        self._observadores: list[ObservadorStock] = []
+
+    def suscribir(self, observador: ObservadorStock) -> None:
+        if observador not in self._observadores:
+            self._observadores.append(observador)
+
+    def desuscribir(self, observador: ObservadorStock) -> None:
+        if observador in self._observadores:
+            self._observadores.remove(observador)
+
+    def notificar(self, stock: Stock) -> None:
+        for observador in list(self._observadores):
+            try:
+                observador.stock_bajo_minimo(stock)
+            except Exception:  # un observador con problemas no debe frenar una venta o un despacho
+                registro.exception("Falló el observador %r al notificar stock bajo el mínimo", observador)
 
 
 @dataclass(frozen=True)

@@ -10,6 +10,7 @@ from src.reportes.productos_reporte import ReporteProductosVendidos, ResumenProd
 from src.servicios.maestros_service import CategoriaService, UbicacionService
 from src.ui.abm import formato_dinero, formato_porcentaje
 from src.ui.componentes import Grilla, ejecutar_con_manejo_de_errores
+from src.ui.exportacion import agregar_botones_exportar
 from src.ui.graficos import Barra, GraficoBarras
 
 TODAS = "Todas"
@@ -80,6 +81,9 @@ class PantallaExistencias(tk.Toplevel, _FiltrosComunes):
             leyenda="Barra: stock disponible   ·   Línea negra: stock mínimo   ·   Rojo con ⚠: en stock mínimo",
         )
         self.grafico.pack(fill="x", pady=(10, 0))
+        agregar_botones_exportar(barra, self, "R1 – Existencias actuales y stock mínimo",
+                                 tablas=[("Existencias por ubicación", self.grilla)],
+                                 grafico=self.grafico, resumen=self.resumen)
 
         if self.reporte is None:
             self.boton.configure(state="disabled")
@@ -163,6 +167,9 @@ class PantallaProductosVendidos(tk.Toplevel, _FiltrosComunes):
             leyenda="Rojo con ⚠: producto vendido a pérdida (margen negativo)",
         )
         self.grafico.pack(fill="x", pady=(10, 0))
+        agregar_botones_exportar(barra, self, "R2 – Productos más vendidos y margen",
+                                 tablas=[("Ranking de productos", self.grilla)],
+                                 grafico=self.grafico, resumen=self.resumen)
         self._consultar()
 
     def _consultar(self) -> None:

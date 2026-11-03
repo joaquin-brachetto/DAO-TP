@@ -61,6 +61,33 @@ class VentasService:
         self.stock = stock_service
         self.plazo_devolucion_dias = plazo_devolucion_dias
 
+    # --- Consultas para la pantalla (la interfaz no ejecuta SQL: lo pide acá) -------------
+
+    def sucursales_activas(self) -> list:
+        return self.repo.sucursales_activas()
+
+    def productos_activos(self) -> list:
+        return self.repo.productos_activos()
+
+    def producto(self, producto_id: int):
+        """SKU, nombre y precio de venta actual de un producto."""
+        return self.repo.producto_para_mostrar(producto_id)
+
+    def comprobante_de_venta(self, venta_id: int):
+        return self.repo.comprobante_de_venta(venta_id)
+
+    def ventas_devolvibles(self) -> list:
+        """Ventas confirmadas dentro del plazo de devolución."""
+        return self.repo.ventas_confirmadas_desde(datetime.now() - timedelta(days=self.plazo_devolucion_dias))
+
+    def renglones_de_venta(self, venta_id: int) -> list:
+        return self.repo.renglones_con_producto(venta_id)
+
+    def producto_de_renglon(self, detalle_venta_id: int):
+        return self.repo.producto_de_renglon(detalle_venta_id)
+
+    # --- Operaciones --------------------------------------------------------------------------
+
     def registrar_cliente(self, cliente: Cliente) -> Cliente:
         """Registra un comprador con documento único para emitir comprobantes."""
         cliente.documento = cliente.documento.strip()
@@ -349,10 +376,8 @@ class VentasService:
             monto = dinero(pago.monto)
             if monto <= 0:
                 raise ValidacionError("Cada importe de pago debe ser mayor que cero.")
-            if not medio.validar(pago.datos):
-                if pago.medio_pago.upper() == "CREDITO" and not 1 <= pago.cuotas <= 12:
-                    raise ValidacionError("La tarjeta de crédito admite entre 1 y 12 cuotas.")
-                raise ValidacionError(f"Faltan datos válidos para el pago {pago.medio_pago.upper()}.")
+            if not medio.validar(pago.datos):  # Strategy: cada medio valida y explica a su manera
+                raise ValidacionError(medio.mensaje_invalido())
             recargo = dinero(medio.calcular_recargo(monto))
             suma_base += monto
             suma_recargos += recargo
@@ -360,7 +385,7 @@ class VentasService:
                 "medio_pago": medio.tipo,
                 "monto": monto,
                 "recargo": recargo,
-                "cuotas": pago.cuotas if medio.tipo == "CREDITO" else 1,
+                "cuotas": medio.cuotas,
                 "nro_autorizacion": pago.datos.get("autorizacion", pago.datos.get("referencia", "")).strip(),
             })
         if dinero(suma_base) != total_base:
@@ -389,4 +414,4 @@ class VentasService:
     def _stock_requerido(self) -> StockService:
         if self.stock is None:
             raise ValidacionError("Ventas necesita el StockService de inventario para operar.")
-        return self.stock
+        return self.stock

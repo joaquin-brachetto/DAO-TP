@@ -43,6 +43,47 @@ class VentasRepositorio:
             "FROM producto WHERE id = ?", (producto_id,)
         )
 
+    def sucursales_activas(self) -> list:
+        return self.db.consultar(
+            "SELECT id, codigo, nombre FROM ubicacion WHERE tipo = 'SUCURSAL' AND activa = 1 ORDER BY nombre"
+        )
+
+    def productos_activos(self) -> list:
+        return self.db.consultar("SELECT id, sku, nombre FROM producto WHERE activo = 1 ORDER BY nombre")
+
+    def producto_para_mostrar(self, producto_id: int):
+        return self.db.consultar_uno(
+            "SELECT sku, nombre, precio_venta_actual FROM producto WHERE id = ?", (producto_id,)
+        )
+
+    def comprobante_de_venta(self, venta_id: int):
+        return self.db.consultar_uno(
+            "SELECT tipo, punto_venta, numero, total FROM comprobante WHERE venta_id = ?", (venta_id,)
+        )
+
+    def ventas_confirmadas_desde(self, fecha_desde: datetime) -> list:
+        """Ventas que todavía pueden recibir devoluciones, con su sucursal y comprobante."""
+        return self.db.consultar(
+            "SELECT v.id, v.numero, v.fecha_hora, v.total, u.nombre AS sucursal, c.tipo, c.numero AS numero_comprobante "
+            "FROM venta v JOIN ubicacion u ON u.id = v.ubicacion_id "
+            "JOIN comprobante c ON c.venta_id = v.id "
+            "WHERE v.estado = 'CONFIRMADA' AND v.fecha_hora >= ? ORDER BY v.fecha_hora DESC",
+            (fecha_desde.isoformat(sep=" "),),
+        )
+
+    def renglones_con_producto(self, venta_id: int) -> list:
+        return self.db.consultar(
+            "SELECT d.id, d.cantidad, d.cantidad_devuelta, p.sku, p.nombre "
+            "FROM detalle_venta d JOIN producto p ON p.id = d.producto_id "
+            "WHERE d.venta_id = ? ORDER BY d.id", (venta_id,),
+        )
+
+    def producto_de_renglon(self, detalle_venta_id: int):
+        return self.db.consultar_uno(
+            "SELECT p.sku, p.nombre FROM detalle_venta d JOIN producto p ON p.id = d.producto_id "
+            "WHERE d.id = ?", (detalle_venta_id,),
+        )
+
     def existe_cliente(self, cliente_id: int) -> bool:
         return self.db.consultar_uno("SELECT 1 FROM cliente WHERE id = ?", (cliente_id,)) is not None
 
@@ -196,4 +237,4 @@ class VentasRepositorio:
         for movimiento in movimientos:
             importe = Decimal(movimiento["monto"])
             saldo += importe if movimiento["tipo"] == "INGRESO" else -importe
-        return saldo.quantize(Decimal("0.01"))
+        return saldo.quantize(Decimal("0.01"))

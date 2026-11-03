@@ -38,6 +38,14 @@ def ejecutar_con_manejo_de_errores(accion: Callable[[], Any], padre: tk.Misc | N
 # --- Grilla -------------------------------------------------------------------------
 
 
+def contenido_de_tabla(tabla: ttk.Treeview) -> tuple[list[str], list[list[str]]]:
+    """Títulos y filas de un Treeview, como texto."""
+    columnas = list(tabla["columns"])
+    titulos = [tabla.heading(columna, "text") for columna in columnas]
+    filas = [[str(valor) for valor in tabla.item(item, "values")] for item in tabla.get_children()]
+    return titulos, filas
+
+
 class Grilla(ttk.Frame):
     """Tabla con barra de desplazamiento para listar registros.
 
@@ -79,6 +87,10 @@ class Grilla(ttk.Frame):
             self._tabla.insert(
                 "", "end", iid=str(clave(registro)), values=list(valores(registro)), tags=etiquetas
             )
+
+    def contenido(self) -> tuple[list[str], list[list[str]]]:
+        """Títulos de las columnas y filas tal como se ven (lo usa la exportación de reportes)."""
+        return contenido_de_tabla(self._tabla)
 
     def seleccionar(self, clave: Any) -> None:
         """Selecciona y muestra la fila con esa clave, si existe."""
