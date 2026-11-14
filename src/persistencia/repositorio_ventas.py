@@ -64,9 +64,11 @@ class VentasRepositorio:
     def ventas_confirmadas_desde(self, fecha_desde: datetime) -> list:
         """Ventas que todavía pueden recibir devoluciones, con su sucursal y comprobante."""
         return self.db.consultar(
-            "SELECT v.id, v.numero, v.fecha_hora, v.total, u.nombre AS sucursal, c.tipo, c.numero AS numero_comprobante "
+            "SELECT v.id, v.numero, v.fecha_hora, v.total, v.ubicacion_id, u.nombre AS sucursal, "
+            "c.tipo, c.punto_venta, c.numero AS numero_comprobante, cl.nombre AS cliente "
             "FROM venta v JOIN ubicacion u ON u.id = v.ubicacion_id "
             "JOIN comprobante c ON c.venta_id = v.id "
+            "LEFT JOIN cliente cl ON cl.id = v.cliente_id "
             "WHERE v.estado = 'CONFIRMADA' AND v.fecha_hora >= ? ORDER BY v.fecha_hora DESC",
             (fecha_desde.isoformat(sep=" "),),
         )
@@ -228,6 +230,24 @@ class VentasRepositorio:
         )
         return devolucion_id, int(nota_cursor.lastrowid)
 
+    def movimientos_de_caja(self, caja_id: int) -> list:
+        """Ingresos y egresos de una caja, del más reciente al más antiguo."""
+        return self.db.consultar(
+            "SELECT fecha_hora, tipo, monto, medio_pago, concepto FROM movimiento_caja "
+            "WHERE caja_id = ? ORDER BY fecha_hora DESC, id DESC", (caja_id,),
+        )
+
+    def devoluciones_de_sucursal(self, ubicacion_id: int) -> list:
+        """Devoluciones con su nota de crédito y el comprobante de la venta original."""
+        return self.db.consultar(
+            "SELECT d.id, d.fecha_hora, d.motivo, d.total_reintegrar, "
+            "nc.punto_venta, nc.numero AS numero_nota, cv.tipo AS tipo_venta, cv.numero AS numero_venta "
+            "FROM devolucion d JOIN venta v ON v.id = d.venta_id "
+            "JOIN comprobante nc ON nc.devolucion_id = d.id "
+            "JOIN comprobante cv ON cv.venta_id = v.id "
+            "WHERE v.ubicacion_id = ? ORDER BY d.fecha_hora DESC, d.id DESC", (ubicacion_id,),
+        )
+
     def saldo_caja(self, caja_id: int) -> Decimal:
         caja = self.db.consultar_uno("SELECT saldo_inicial FROM caja WHERE id = ?", (caja_id,))
         saldo = Decimal(caja["saldo_inicial"])
@@ -237,4 +257,4 @@ class VentasRepositorio:
         for movimiento in movimientos:
             importe = Decimal(movimiento["monto"])
             saldo += importe if movimiento["tipo"] == "INGRESO" else -importe
-        return saldo.quantize(Decimal("0.01"))
+        return saldo.quantize(Decimal("0.01"))

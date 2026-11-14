@@ -40,7 +40,7 @@ AbrirPantalla = Callable[[Misc], None]
 
 OPCIONES_MENU: dict[str, list[tuple[str, AbrirPantalla | None]]] = {
     # --- brache ---
-    "Maestros": [
+    "Administración": [
         ("Sucursales y Centro de Distribución", abrir_ubicaciones),
         ("Categorías", abrir_categorias),
         ("Productos y precios", abrir_productos),

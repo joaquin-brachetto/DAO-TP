@@ -2,13 +2,13 @@
 
 Trabajo Práctico Integrador de **Desarrollo de Aplicaciones con Objetos** (UTN FRC, 2026), tema 3.
 
-Aplicación de escritorio en Python para un comercio con varios locales que se abastecen desde un Centro de
+Aplicación web en Python para un comercio con varios locales que se abastecen desde un Centro de
 Distribución (CD). Integra compras, inventario, logística interna y ventas, y mantiene el stock actualizado en
 cada ubicación.
 
 ## Qué hace el sistema
 
-- **Maestros:** sucursales, Centro de Distribución, categorías, productos con su historial de precios,
+- **Administración:** sucursales, Centro de Distribución, categorías, productos con su historial de precios,
   proveedores y stock mínimo de cada producto en cada ubicación.
 - **Compras:** órdenes de compra a proveedores que, al recibirse, suman stock en el CD. El sistema puede
   sugerir qué comprar según los faltantes del CD.
@@ -30,24 +30,23 @@ cambio de stock queda registrado en un movimiento que no se puede modificar ni b
 
 | Consigna | Dónde se resuelve |
 |----------|-------------------|
-| P1 – Sucursales y Centro de Distribución | Maestros → Sucursales y Centro de Distribución |
-| P2 – Productos, categorías, precios, stock mínimo y proveedores | Maestros |
+| P1 – Sucursales y Centro de Distribución | Administración → Sucursales y CD |
+| P2 – Productos, categorías, precios, stock mínimo y proveedores | Administración |
 | P3 – Consolidar necesidades en una orden de reposición | Inventario → Necesidades y Órdenes de reposición |
-| P4 – Bultos con remito y precinto | Logística → Armado de bultos y remitos |
-| P5 – Despacho desde el CD | Logística → Despacho |
+| P4 – Bultos con remito y precinto | Logística → Armado y despacho |
+| P5 – Despacho desde el CD | Logística → Armado y despacho |
 | P6 – Recepción con control de precinto | Logística → Recepción en sucursal |
 | P7 – Ventas, cobros, comprobantes y devoluciones | Ventas |
 | V1 – Sin stock disponible hasta verificar; precinto roto → rechazo | Stock en tres partes y recepción por bulto |
 | V2 – Trazabilidad inmutable del bulto | Historial de estados que solo admite altas |
 | V3 – No vender más que lo disponible y verificado | Validación al vender y restricción en la base |
-| V4 – Sin productos ni proveedores duplicados | SKU, código de barras y CUIT únicos |
+| V4 – Sin productos ni proveedores duplicados | SKU y CUIT únicos |
 | V5 – Devoluciones solo de ventas registradas y dentro de las reglas | Plazo de 30 días y cantidades devueltas ≤ vendidas |
 | Opcional – Órdenes de compra sugeridas por faltantes | Inventario → Compras a proveedores |
 
 ## Instalación y ejecución
 
-Requisitos: **Python 3.11 o superior** con Tkinter (en Windows y macOS viene incluido; en Linux puede hacer
-falta el paquete `python3-tk`).
+Requisitos: **Python 3.11 o superior** y un navegador web.
 
 Desde la carpeta del proyecto:
 
@@ -56,24 +55,29 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-`requirements.txt` instala **pytest** (tests), **ReportLab** (exportar a PDF) y **Matplotlib** (gráficos del PDF).
-El resto usa la biblioteca estándar: `sqlite3`, `tkinter` y `csv`.
+`python main.py` levanta el servidor y abre el sistema en el navegador, en **http://127.0.0.1:5000**. Para
+cerrarlo, se presiona Ctrl+C en la consola. Con `python main.py --sin-navegador` solo se levanta el servidor.
+
+`requirements.txt` instala **Flask** (aplicación web), **pytest** (tests), **ReportLab** (exportar a PDF) y
+**Matplotlib** (gráficos del PDF). El resto usa la biblioteca estándar: `sqlite3` y `csv`.
 
 La primera vez se crea la base de datos SQLite en `datos/ventas.db` con todas sus tablas. Para empezar de cero,
 basta con cerrar el programa y borrar ese archivo.
 
+La versión de escritorio anterior, hecha con Tkinter, sigue disponible con `python main.py --escritorio`.
+
 ## Datos de prueba
 
-Se cargan desde el menú, **en este orden**, sobre una base vacía:
+Con la base vacía, la pantalla de **Inicio** muestra los tres pasos de carga. Se cargan **en este orden** y cada
+uno exige el anterior:
 
-1. **Archivo → Cargar datos de prueba.** Un CD, tres sucursales, cinco categorías, cuatro proveedores,
-   23 productos con historial de precios, el stock mínimo de cada producto en cada ubicación y tres clientes
-   (consumidor final, responsable inscripto y monotributista).
-2. **Inventario → Cargar stock de prueba.** Una orden de compra recibida por proveedor, una carga inicial
-   verificada en cada sucursal y una orden de compra pendiente. El *Café molido 250 g* queda justo en su mínimo
-   en la Sucursal Centro: al venderle una unidad aparece la alerta de stock mínimo y se genera una necesidad de
-   reposición automática.
-3. **Logística → Cargar datos de prueba de logística.** Tres remitos despachados:
+1. **Datos base.** Un CD, tres sucursales, cinco categorías, cuatro proveedores, 23 productos con historial de
+   precios, el stock mínimo de cada producto en cada ubicación y tres clientes (consumidor final, responsable
+   inscripto y monotributista).
+2. **Stock inicial.** Una orden de compra recibida por proveedor, una carga inicial verificada en cada sucursal y
+   una orden de compra pendiente. El *Café molido 250 g* queda justo en su mínimo en la Sucursal Centro: al
+   venderle una unidad aparece la alerta de stock mínimo y se genera una necesidad de reposición automática.
+3. **Logística.** Tres remitos despachados:
    - Sucursal Centro: dos bultos verificados; la orden cierra completa.
    - Sucursal Nueva Córdoba: un bulto verificado y dos rechazados (uno con el precinto roto y otro con un
      precinto que no coincide); la orden cierra con faltantes.
@@ -81,37 +85,36 @@ Se cargan desde el menú, **en este orden**, sobre una base vacía:
 
    Además deja una orden de reposición pendiente, lista para armar sus bultos.
 
-Cada paso exige el anterior. Las ventas no se cargan: se registran desde el menú Ventas.
+Las ventas no se cargan: se registran desde Ventas, después de abrir la caja de la sucursal en **Ventas → Caja**.
 
-## Menús
+## Secciones
 
-| Menú | Opción | Qué permite |
-|------|--------|-------------|
-| **Archivo** | Cargar datos de prueba · Salir | |
-| **Maestros** | Sucursales y Centro de Distribución | Alta, modificación, baja y reactivación |
+| Sección | Pestaña | Qué permite |
+|---------|---------|-------------|
+| **Inicio** | | Cobrado del día, stock valorizado, remitos en tránsito, productos en su mínimo, ventas de la semana, reposición en curso y últimas ventas |
+| **Administración** | Sucursales y CD | Alta, modificación, baja y reactivación |
 | | Categorías | Alta, modificación y eliminación (si no tiene productos) |
-| | Productos y precios | Alta, modificación, baja y reactivación; historial de precios, proveedores del producto y stock mínimo por ubicación |
-| | Proveedores | Alta, modificación, baja, reactivación y productos que provee |
+| | Productos y precios | Alta, modificación, baja y reactivación; proveedores del producto, stock mínimo por ubicación e historial de precios |
+| | Proveedores | Alta, modificación, baja y reactivación |
 | **Inventario** | Stock por ubicación | Disponible, pendiente y merma de cada producto, movimientos de un producto y alertas de stock mínimo |
 | | Compras a proveedores | Crear, recibir y anular órdenes de compra; sugerir una orden según los faltantes del CD |
-| | Necesidades de reposición | Registrar necesidades, sugerirlas según el stock mínimo y consolidarlas en una orden |
-| | Órdenes de reposición | Estado y avance de cada orden (solicitado, preparado, recibido); iniciar la preparación y cerrarla |
-| **Logística** | Armado de bultos y remitos | Empaquetar una orden de reposición en bultos, precintarlos y emitir el remito |
-| | Despacho | Registrar la salida de uno o más remitos del CD (transportista y patente) |
-| | Recepción en sucursal | Recibir un remito y controlar el precinto de cada bulto |
+| | Necesidades | Registrar necesidades, sugerirlas según el stock mínimo, anularlas y convertirlas en una orden de reposición, de a una o todas las pendientes de una sucursal |
+| | Órdenes de reposición | Estado y avance de cada orden (pedido, empaquetado, recibido) e inicio de la preparación |
+| **Logística** | Armado y despacho | Empaquetar una orden en uno o más bultos, precintarlos y despachar el remito (transportista y patente) |
+| | Recepción en sucursal | Registrar la llegada del remito, controlar el precinto de cada bulto y cerrar la recepción |
 | | Trazabilidad de bultos | Buscar un bulto y ver su historial de estados |
-| **Ventas** | Nueva venta | Venta con uno o más productos, pago mixto y comprobante |
+| **Ventas** | Nueva venta | Venta con uno o más productos, pago con uno o varios medios y comprobante según el cliente |
 | | Devoluciones | Devolución total o parcial de una venta, con reingreso a stock opcional y reintegro en caja |
-| | Caja | Apertura, saldo y cierre de la caja de cada sucursal |
-| **Reportes** | Los seis reportes | Ver la sección siguiente |
+| | Caja | Apertura, movimientos, saldo y cierre de la caja de cada sucursal |
+| | Clientes | Alta y modificación de los clientes que se identifican en la venta |
+| **Reportes** | | Los seis reportes de la sección siguiente |
 
-La barra inferior de la ventana principal avisa cuando una venta o un despacho deja un producto en su stock
-mínimo.
+Todas las tablas tienen búsqueda por texto y filtros (estado, categoría, sucursal, proveedor, según el caso).
 
 ## Reportes
 
-Todos tienen filtros, un resumen con totales y un gráfico, y se exportan con los botones **Exportar PDF** y
-**Exportar CSV**. El PDF incluye los filtros, el resumen, el gráfico y las tablas que se ven en pantalla.
+Todos tienen filtros, un resumen con totales y un gráfico, y se descargan con los botones **Exportar a PDF** y
+**Exportar a CSV**. El PDF incluye los filtros, el resumen, el gráfico y las tablas que se ven en pantalla.
 
 | Reporte | Qué muestra | Filtros |
 |---------|-------------|---------|
@@ -120,12 +123,12 @@ Todos tienen filtros, un resumen con totales y un gráfico, y se exportan con lo
 | **R3 – Movimientos y valorización del inventario** | Entradas, salidas y movimientos internos por tipo; stock de cada ubicación valorizado al costo; detalle de cada movimiento con su documento de origen. | Período, ubicación, categoría, tipo de movimiento |
 | **R4 – Tiempo promedio de tránsito CD → locales** | Tiempo entre el despacho en el CD y la verificación en el local: promedio, mínimo y máximo por sucursal, remitos en tránsito y remitos con rechazos. | Período, sucursal |
 | **R5 – Bultos rechazados y mermas** | Bultos rechazados por precinto roto o que no coincide, tasa de rechazo por sucursal y mermas valorizadas por producto. | Período, sucursal, categoría, tipo de anomalía |
-| **R6 – Ventas e ingresos** | Cantidad de ventas y total cobrado por sucursal y medio de pago. | Período, sucursal |
+| **R6 – Ventas e ingresos** | Cantidad de ventas y total cobrado por sucursal y medio de pago. | Período, sucursal, medio de pago |
 
 ## Estructura del proyecto
 
 ```
-main.py                   Punto de entrada
+main.py                   Punto de entrada: levanta la aplicación web
 requirements.txt
 pytest.ini                Configuración de pytest
 src/
@@ -141,19 +144,22 @@ src/
     esquema/              Scripts SQL de creación de tablas, uno por paquete
   servicios/              Reglas de negocio y validaciones
   reportes/               Consultas de los seis reportes y exportación a PDF y CSV
-  ui/
-    ventana_principal.py  Ventana principal y menú
-    componentes.py        Grilla, formulario y mensajes reutilizables
-    graficos.py           Gráfico de barras sobre Canvas
-    pantallas/            Pantallas de cada menú
+  web/
+    app.py                Aplicación Flask: arma los servicios y registra las rutas
+    servicios.py          Servicios compartidos por todas las pantallas
+    rutas_*.py            API de cada sección (inicio, administración, inventario, logística, ventas, reportes)
+    static/               Pantallas: index.html, app.css y app.js
+  ui/                     Versión de escritorio anterior (Tkinter)
 tests/                    Tests con pytest
 docs/
   modelo_dominio.md       Diagramas de clases y de estados
 ```
 
-El código está separado en capas: las **pantallas** muestran datos y llaman a los **servicios**; los servicios
-aplican las reglas de negocio sobre las clases del **dominio** y guardan con los **repositorios**, que son los
-únicos que ejecutan SQL.
+El código está separado en capas: las **pantallas** (en el navegador) muestran datos y le piden todo a la
+**API** (`src/web/rutas_*.py`); las rutas no tienen reglas de negocio ni SQL, solo llaman a los **servicios**.
+Los servicios aplican las reglas de negocio sobre las clases del **dominio** y guardan con los **repositorios**,
+que son los únicos que ejecutan SQL. Si un servicio rechaza una operación (por ejemplo, stock insuficiente o un
+SKU repetido), la API responde con el mensaje del error y la pantalla lo muestra.
 
 Los diagramas de clases de cada paquete y los diagramas de estados del bulto y de la orden de reposición están
 en [`docs/modelo_dominio.md`](docs/modelo_dominio.md).
@@ -183,4 +189,5 @@ python -m pytest tests/test_stock_service.py
 ```
 
 Cubren las reglas de negocio de cada paquete (incluidas las validaciones V1 a V5), las transiciones válidas e
-inválidas del bulto, los patrones, los reportes y la exportación.
+inválidas del bulto, los patrones, los reportes, la exportación y la API web (`tests/test_web.py`, con el
+cliente de pruebas de Flask).
