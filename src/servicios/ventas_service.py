@@ -80,6 +80,25 @@ class VentasService:
         """Ventas confirmadas dentro del plazo de devolución."""
         return self.repo.ventas_confirmadas_desde(datetime.now() - timedelta(days=self.plazo_devolucion_dias))
 
+    def listar_clientes(self) -> list[Cliente]:
+        return self.clientes.listar()
+
+    def caja_actual(self, ubicacion_id: int) -> dict | None:
+        """Caja abierta de la sucursal con su saldo y sus movimientos (None si está cerrada)."""
+        caja = self.repo.caja_abierta(ubicacion_id)
+        if caja is None:
+            return None
+        return {
+            "id": int(caja["id"]),
+            "fecha_apertura": caja["fecha_apertura"],
+            "saldo_inicial": dinero(caja["saldo_inicial"]),
+            "saldo": self.repo.saldo_caja(int(caja["id"])),
+            "movimientos": self.repo.movimientos_de_caja(int(caja["id"])),
+        }
+
+    def devoluciones_de_sucursal(self, ubicacion_id: int) -> list:
+        return self.repo.devoluciones_de_sucursal(ubicacion_id)
+
     def renglones_de_venta(self, venta_id: int) -> list:
         return self.repo.renglones_con_producto(venta_id)
 
@@ -414,4 +433,4 @@ class VentasService:
     def _stock_requerido(self) -> StockService:
         if self.stock is None:
             raise ValidacionError("Ventas necesita el StockService de inventario para operar.")
-        return self.stock
+        return self.stock

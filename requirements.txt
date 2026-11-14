@@ -1,5 +1,6 @@
-# El sistema usa la biblioteca estándar de Python (sqlite3, tkinter, csv).
+# El resto usa la biblioteca estándar de Python (sqlite3, csv y, para la versión de escritorio, tkinter).
 # Instalar con:  python -m pip install -r requirements.txt
+flask>=3.0           # aplicación web
 pytest>=8.0          # tests
 reportlab>=4.0       # exportar reportes a PDF
 matplotlib>=3.8      # gráficos de los reportes en PDF
