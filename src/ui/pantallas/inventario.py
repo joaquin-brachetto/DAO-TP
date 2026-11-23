@@ -826,7 +826,7 @@ class PantallaMovimientos(tk.Toplevel):
 
     def __init__(self, padre: tk.Misc) -> None:
         super().__init__(padre)
-        self.title("R3 – Movimientos y valorización del inventario")
+        self.title("Movimientos y valorización del inventario")
         self.geometry("1150x720")
         self.reporte = ReporteMovimientos()
         catalogo = _Catalogo()
@@ -904,7 +904,7 @@ class PantallaMovimientos(tk.Toplevel):
         )
         self.grilla_detalle.pack(fill="both", expand=True)
         agregar_botones_exportar(
-            barra, self, "R3 – Movimientos y valorización del inventario",
+            barra, self, "Movimientos y valorización del inventario",
             tablas=[("Entradas y salidas por tipo", self.grilla_tipos),
                     ("Stock valorizado por ubicación", self.grilla_valor),
                     ("Detalle de movimientos", self.grilla_detalle)],
@@ -965,7 +965,7 @@ class PantallaTransito(tk.Toplevel):
 
     def __init__(self, padre: tk.Misc) -> None:
         super().__init__(padre)
-        self.title("R4 – Tiempo promedio de tránsito CD → locales")
+        self.title("Tiempo promedio de tránsito CD → locales")
         self.geometry("1100x700")
         self.reporte = ReporteTransito()
 
@@ -1010,7 +1010,7 @@ class PantallaTransito(tk.Toplevel):
         )
         self.grilla_remitos.pack(fill="both", expand=True)
         agregar_botones_exportar(
-            barra, self, "R4 – Tiempo promedio de tránsito CD → locales",
+            barra, self, "Tiempo promedio de tránsito CD → locales",
             tablas=[("Tiempo de tránsito por sucursal", self.grilla_sucursales),
                     ("Remitos del período", self.grilla_remitos)],
             grafico=self.grafico, resumen=self.resumen,

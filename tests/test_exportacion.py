@@ -20,7 +20,7 @@ from src.reportes.exportacion import (
 @pytest.fixture
 def documento():
     return DocumentoReporte(
-        titulo="R4 – Tiempo de tránsito CD → locales",
+        titulo="Tiempo promedio de tránsito desde el CD a todas las sucursales",
         filtros="Desde: 2026-11-01 · Hasta: 2026-11-30",
         resumen="2 remitos verificados",
         secciones=[
@@ -50,7 +50,7 @@ def test_csv_con_titulo_filtros_y_cada_tabla(documento, tmp_path):
 
     with open(ruta, encoding="utf-8-sig", newline="") as archivo:
         filas = list(csv.reader(archivo, delimiter=";"))
-    assert filas[0] == ["R4 – Tiempo de tránsito CD → locales"]
+    assert filas[0] == ["Tiempo promedio de tránsito desde el CD a todas las sucursales"]
     assert ["Filtros: Desde: 2026-11-01 · Hasta: 2026-11-30"] in filas
     inicio = filas.index(["Por sucursal"])
     assert filas[inicio + 1:inicio + 4] == [["Sucursal", "Promedio"], ["Centro", "10 h"], ["Norte", "1 d 2 h"]]

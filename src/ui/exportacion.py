@@ -3,7 +3,7 @@
 Cada pantalla de reporte agrega los botones con una sola llamada, indicando qué tablas
 y qué gráfico exportar:
 
-    agregar_botones_exportar(barra, self, "R3 – Movimientos y valorización",
+    agregar_botones_exportar(barra, self, "Movimientos y valorización",
                              tablas=[("Por tipo", self.grilla_tipos)], grafico=self.grafico,
                              resumen=self.resumen)
 
@@ -118,6 +118,6 @@ def _grafico(grafico) -> GraficoReporte | None:
 
 
 def _nombre_archivo(titulo: str) -> str:
-    """«R3 – Movimientos y valorización» → «R3_Movimientos_y_valorizacion»."""
+    """«Movimientos y valorización» → «Movimientos_y_valorizacion»."""
     sin_acentos = titulo.translate(str.maketrans("áéíóúñÁÉÍÓÚÑ", "aeiounAEIOUN"))
     return re.sub(r"[^A-Za-z0-9]+", "_", sin_acentos).strip("_")

@@ -94,7 +94,7 @@ def test_venta_mixta_egresa_stock_emite_ticket_y_actualiza_caja(db, servicio, st
     venta_id = servicio.registrar_venta(
         1,
         {1: 2},
-        [efectivo("10.00"), PagoSolicitado("CREDITO", Decimal("10.00"), {"autorizacion": "AUT-1"}, cuotas=2)],
+        [efectivo("10.00"), PagoSolicitado("CREDITO", Decimal("10.00"), {}, cuotas=2)],
         vendedor="Vinchi",
     )
 
@@ -148,8 +148,14 @@ def test_cada_estrategia_define_sus_cuotas_y_su_mensaje(medio, cuotas, cuotas_es
     assert estrategia.mensaje_invalido() == mensaje
 
 
+@pytest.mark.parametrize("medio", ["EFECTIVO", "DEBITO", "CREDITO", "TRANSFERENCIA"])
+def test_ningun_medio_pide_autorizacion_ni_referencia(medio):
+    """Los 4 medios se cobran igual que el efectivo: sin datos extra."""
+    assert crear_medio_pago(medio).validar({}) is True
+
+
 def test_credito_con_mas_de_12_cuotas_no_se_cobra(db, servicio):
-    pago = PagoSolicitado("CREDITO", Decimal("10.00"), {"autorizacion": "AUT-1"}, cuotas=13)
+    pago = PagoSolicitado("CREDITO", Decimal("10.00"), {}, cuotas=13)
 
     with pytest.raises(ValidacionError, match="entre 1 y 12 cuotas"):
         servicio.registrar_venta(1, {1: 1}, [pago], vendedor="Vinchi")
@@ -288,7 +294,7 @@ def test_reporte_r6_agrupa_por_medio_sin_duplicar_ventas_mixtas(db, servicio):
     servicio.registrar_venta(
         1,
         {1: 2},
-        [efectivo("10.00"), PagoSolicitado("TRANSFERENCIA", Decimal("10.00"), {"referencia": "TRX-1"})],
+        [efectivo("10.00"), PagoSolicitado("TRANSFERENCIA", Decimal("10.00"), {})],
         vendedor="Vinchi",
     )
 

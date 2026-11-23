@@ -1344,7 +1344,7 @@ class PantallaReporteRechazos(tk.Toplevel):
 
     def __init__(self, padre: tk.Misc) -> None:
         super().__init__(padre)
-        self.title("R5 – Bultos rechazados y mermas por rotura de precinto logístico")
+        self.title("Bultos rechazados y mermas por rotura del precinto")
         self.geometry("1240x740")
         self.catalogo = _Catalogo()
         stock = _stock_service(padre)
@@ -1452,7 +1452,7 @@ class PantallaReporteRechazos(tk.Toplevel):
         )
         self.grilla_productos.pack(fill="both", expand=True)
         agregar_botones_exportar(
-            barra, self, "R5 – Bultos rechazados y mermas por rotura de precinto",
+            barra, self, "Bultos rechazados y mermas por rotura de precinto",
             tablas=[("Resumen por sucursal", self.grilla_sucursales),
                     ("Detalle de bultos rechazados", self.grilla_bultos),
                     ("Mermas valorizadas por producto", self.grilla_productos)],

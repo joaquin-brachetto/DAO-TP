@@ -30,11 +30,19 @@ DIAS_POR_DEFECTO = 30
 
 
 class Filtros:
-    """Lee los filtros de la URL y arma el texto «Desde: … · Sucursal: …» que va en el PDF."""
+    """Lee los filtros de la URL y arma el texto «Desde: … · Sucursal: …» que va en el PDF.
+
+    También arma el título particular de cada reporte según lo filtrado, por ejemplo
+    «Movimientos y valorización del inventario en la Sucursal Nueva Córdoba».
+    """
 
     def __init__(self) -> None:
         self.s = servicios()
         self.partes: list[str] = []
+        self.lugar: object | None = None       # ubicación elegida (None = todas)
+        self.todas = "todas las ubicaciones"   # cómo se nombra «Todas» en el título
+        self.nombre_categoria: str | None = None
+        self.agregados: list[str] = []         # otros filtros que van al título
 
     def periodo(self) -> tuple[date, date]:
         hoy = date.today()
@@ -47,13 +55,15 @@ class Filtros:
 
     def ubicacion(self, nombre: str = "ubicacion", etiqueta: str = "Ubicación") -> int | None:
         ubicacion_id = arg_entero(nombre, etiqueta)
-        texto = self.s.ubicaciones.obtener(ubicacion_id).nombre if ubicacion_id else "Todas"
-        self.partes.append(f"{etiqueta}: {texto}")
+        self.lugar = self.s.ubicaciones.obtener(ubicacion_id) if ubicacion_id else None
+        self.todas = "todas las sucursales" if nombre == "sucursal" else "todas las ubicaciones"
+        self.partes.append(f"{etiqueta}: {self.lugar.nombre if self.lugar else 'Todas'}")
         return ubicacion_id
 
     def categoria(self) -> int | None:
         categoria_id = arg_entero("categoria", "Categoría")
         nombres = {c.id: c.nombre for c in self.s.categorias.listar()}
+        self.nombre_categoria = nombres.get(categoria_id)
         self.partes.append(f"Categoría: {nombres.get(categoria_id, 'Todas')}")
         return categoria_id
 
@@ -66,6 +76,29 @@ class Filtros:
 
     def texto(self) -> str:
         return " · ".join(self.partes)
+
+    def donde(self, preposicion: str = "en") -> str:
+        """«en la Sucursal Nueva Córdoba», «en el Centro de Distribución Córdoba» o «en todas las sucursales»."""
+        if self.lugar is None:
+            return f"{preposicion} {self.todas}"
+        nombre = self.lugar.nombre
+        if self.lugar.es_centro_distribucion():
+            tipo, articulo = "Centro de Distribución", "el"
+        else:
+            tipo, articulo = "Sucursal", "la"
+        if not nombre.lower().startswith(tipo.lower()):
+            nombre = f"{tipo.lower()} {nombre}"
+        contraccion = {("a", "el"): "al", ("en", "el"): "en el", ("a", "la"): "a la", ("en", "la"): "en la"}
+        return f"{contraccion[(preposicion, articulo)]} {nombre}"
+
+    def titulo(self, base: str, preposicion: str = "en") -> str:
+        """Título del reporte con el lugar, la categoría y los demás filtros que se eligieron."""
+        titulo = f"{base} {self.donde(preposicion)}"
+        if self.nombre_categoria:
+            titulo += f", categoría {self.nombre_categoria}"
+        for agregado in self.agregados:
+            titulo += f", {agregado}"
+        return titulo
 
 
 def _documento(titulo, filtros, resumen, grafico, secciones) -> DocumentoReporte:
@@ -80,7 +113,7 @@ def _documento(titulo, filtros, resumen, grafico, secciones) -> DocumentoReporte
     return documento
 
 
-# --- R1: existencias y stock mínimo -------------------------------------------------------------------
+# --- existencias y stock mínimo -------------------------------------------------------------------
 
 
 def r1_existencias() -> DocumentoReporte:
@@ -89,10 +122,11 @@ def r1_existencias() -> DocumentoReporte:
     solo_minimo = request.args.get("solo_minimo") == "1"
     if solo_minimo:
         f.partes.append("Solo en stock mínimo")
+        f.agregados.append("solo productos en stock mínimo")
     r = ReporteExistencias(f.s.stock, f.s.db).consultar(ubicacion_id, categoria_id, solo_minimo)
     criticos = r.menor_cobertura(10)
     return _documento(
-        "R1 – Existencias y stock mínimo", f,
+        f.titulo("Existencias y stock mínimo"), f,
         [("Renglones", miles(len(r.filas))), ("En o bajo el mínimo", miles(r.cantidad_en_minimo)),
          ("Unidades disponibles", miles(r.total_unidades)), ("Valorizado al costo", dinero(r.total_valorizado))],
         GraficoReporte("Productos más cerca de su mínimo (unidades disponibles)",
@@ -106,7 +140,7 @@ def r1_existencias() -> DocumentoReporte:
     )
 
 
-# --- R2: productos más vendidos y margen -------------------------------------------------------------
+# --- productos más vendidos y margen -------------------------------------------------------------
 
 
 def r2_productos() -> DocumentoReporte:
@@ -116,7 +150,7 @@ def r2_productos() -> DocumentoReporte:
     r = ReporteProductosVendidos(f.s.db).consultar(desde, hasta, ubicacion_id, categoria_id)
     top = r.top(10)
     return _documento(
-        "R2 – Productos más vendidos y margen", f,
+        f.titulo("Productos más vendidos y margen"), f,
         [("Unidades vendidas", miles(r.total_unidades)), ("Ingresos", dinero(r.total_ingresos)),
          ("Margen", dinero(r.total_margen)), ("Margen sobre ventas", porcentaje(r.margen_porcentual))],
         GraficoReporte("Los diez productos más vendidos (unidades)", [x.producto for x in top],
@@ -128,7 +162,7 @@ def r2_productos() -> DocumentoReporte:
     )
 
 
-# --- R3: movimientos y valorización del inventario --------------------------------------------------
+# --- movimientos y valorización del inventario --------------------------------------------------
 
 
 def r3_movimientos() -> DocumentoReporte:
@@ -136,10 +170,12 @@ def r3_movimientos() -> DocumentoReporte:
     desde, hasta = f.periodo()
     ubicacion_id, categoria_id = f.ubicacion(), f.categoria()
     tipo = f.opcion("tipo", "Tipo", {t.value: NOMBRE_TIPO[t] for t in TipoMovimiento})
+    if tipo:
+        f.agregados.append(f"solo «{NOMBRE_TIPO[TipoMovimiento(tipo)]}»")
     r = ReporteMovimientos(f.s.db).consultar(desde, hasta, ubicacion_id, categoria_id, TipoMovimiento(tipo) if tipo else None)
     (u_ent, v_ent), (u_sal, v_sal) = r.entradas, r.salidas
     return _documento(
-        "R3 – Movimientos y valorización del inventario", f,
+        f.titulo("Movimientos y valorización del inventario"), f,
         [("Movimientos", miles(len(r.movimientos))), ("Entradas", f"{miles(u_ent)} u. · {dinero(v_ent)}"),
          ("Salidas", f"{miles(u_sal)} u. · {dinero(v_sal)}"), ("Stock valorizado", dinero(r.total_valorizado))],
         GraficoReporte("Stock valorizado al costo actual, por ubicación", [x.ubicacion for x in r.valorizacion],
@@ -160,7 +196,7 @@ def r3_movimientos() -> DocumentoReporte:
     )
 
 
-# --- R4: tiempo de tránsito CD → locales ------------------------------------------------------------
+# --- tiempo de tránsito CD → locales ------------------------------------------------------------
 
 
 def r4_transito() -> DocumentoReporte:
@@ -170,7 +206,7 @@ def r4_transito() -> DocumentoReporte:
     r = ReporteTransito(f.s.db).consultar(desde, hasta, sucursal_id)
     por_sucursal = r.por_sucursal()
     return _documento(
-        "R4 – Tiempo promedio de tránsito CD → locales", f,
+        f.titulo("Tiempo promedio de tránsito desde el CD", "a"), f,
         [("Remitos verificados", miles(len(r.recibidos))), ("En tránsito", miles(r.cantidad_en_transito)),
          ("Promedio general", formato_duracion(r.promedio_horas) if r.promedio_horas is not None else "—")],
         GraficoReporte("Tiempo promedio de tránsito por sucursal (horas)", [x.destino for x in por_sucursal],
@@ -189,7 +225,7 @@ def r4_transito() -> DocumentoReporte:
     )
 
 
-# --- R5: bultos rechazados y mermas -------------------------------------------------------------------
+# --- bultos rechazados y mermas -------------------------------------------------------------------
 
 
 def r5_rechazos() -> DocumentoReporte:
@@ -198,9 +234,11 @@ def r5_rechazos() -> DocumentoReporte:
     sucursal_id, categoria_id = f.ubicacion("sucursal", "Sucursal"), f.categoria()
     anomalias = {t.value: NOMBRE_ANOMALIA[t.value] for t in TipoAnomaliaPrecinto if t != TipoAnomaliaPrecinto.TODOS}
     anomalia = f.opcion("anomalia", "Anomalía", anomalias)
+    if anomalia:
+        f.agregados.append(f"solo «{anomalias[anomalia]}»")
     r = ReporteBultosRechazados(f.s.db).consultar(desde, hasta, sucursal_id, categoria_id, anomalia)
     return _documento(
-        "R5 – Bultos rechazados y mermas", f,
+        f.titulo("Bultos rechazados y mermas"), f,
         [("Bultos rechazados", miles(r.total_bultos_rechazados)), ("Unidades a merma", miles(r.total_unidades_merma)),
          ("Costo de la merma", dinero(r.total_valor_merma)), ("Tasa de rechazo", porcentaje(r.tasa_rechazo_global))],
         GraficoReporte("Costo de la merma por sucursal", [x.sucursal for x in r.por_sucursal],
@@ -224,7 +262,7 @@ def r5_rechazos() -> DocumentoReporte:
     )
 
 
-# --- R6: ventas por período, local y medio de pago ------------------------------------------------------
+# --- ventas por período, local y medio de pago ------------------------------------------------------
 
 
 def r6_ventas() -> DocumentoReporte:
@@ -232,13 +270,15 @@ def r6_ventas() -> DocumentoReporte:
     desde, hasta = f.periodo()
     sucursal_id = f.ubicacion("sucursal", "Sucursal")
     medio = f.opcion("medio", "Medio de pago", NOMBRES_MEDIO)
+    if medio:
+        f.agregados.append(f"cobrado con {NOMBRES_MEDIO[medio].lower()}")
     filas = [x for x in ReporteVentas(f.s.db).consultar(desde, hasta, sucursal_id) if not medio or x.medio_pago == medio]
     por_sucursal: dict[str, float] = {}
     for x in filas:
         por_sucursal[x.sucursal] = por_sucursal.get(x.sucursal, 0) + float(x.total_cobrado)
     total = sum((x.total_cobrado for x in filas), start=0)
     return _documento(
-        "R6 – Ventas por período, local y medio de pago", f,
+        f.titulo("Ventas por período y medio de pago"), f,
         [("Total cobrado", dinero(total)), ("Cobros", miles(sum(x.cantidad_ventas for x in filas))),
          ("Sucursales con ventas", miles(len(por_sucursal)))],
         GraficoReporte("Total cobrado por sucursal", list(por_sucursal), list(por_sucursal.values())),
@@ -253,6 +293,12 @@ REPORTES: dict[str, Callable[[], DocumentoReporte]] = {
     "r1": r1_existencias, "r2": r2_productos, "r3": r3_movimientos,
     "r4": r4_transito, "r5": r5_rechazos, "r6": r6_ventas,
 }
+
+
+def nombre_archivo(titulo: str) -> str:
+    """«Movimientos y valorización … en la Sucursal Nueva Córdoba» → «movimientos_y_valorizacion_…_nueva_cordoba»."""
+    sin_acentos = unicodedata.normalize("NFKD", titulo).encode("ascii", "ignore").decode()
+    return re.sub(r"[^A-Za-z0-9]+", "_", sin_acentos).strip("_").lower()
 
 
 def _armar(clave: str) -> DocumentoReporte:
@@ -279,14 +325,13 @@ def ver_reporte(clave: str):
 def exportar_reporte(clave: str):
     exportador = exportador_para(request.args.get("formato", "PDF"))
     documento = _armar(clave)
-    sin_acentos = unicodedata.normalize("NFKD", documento.titulo.split("–")[-1]).encode("ascii", "ignore").decode()
-    nombre = re.sub(r"[^A-Za-z0-9]+", "_", sin_acentos).strip("_").lower()
+    nombre = nombre_archivo(documento.titulo)
     with tempfile.TemporaryDirectory() as carpeta:
         ruta = exportador.exportar(documento, Path(carpeta) / f"reporte{exportador.extension}")
         contenido = ruta.read_bytes()
     return send_file(
         BytesIO(contenido),
         as_attachment=True,
-        download_name=f"{clave}_{nombre}_{date.today():%Y%m%d}{exportador.extension}",
+        download_name=f"{nombre}_{date.today():%Y%m%d}{exportador.extension}",
         mimetype="application/pdf" if exportador.extension == ".pdf" else "text/csv",
     )

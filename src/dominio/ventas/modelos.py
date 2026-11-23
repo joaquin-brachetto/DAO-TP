@@ -118,7 +118,7 @@ class Efectivo(MedioPago):
 
 
 class TarjetaDebito(MedioPago):
-    """Débito: requiere referencia de autorización y no agrega recargo."""
+    """Débito: se cobra igual que el efectivo, sin datos extra ni recargo."""
 
     tipo = "DEBITO"
 
@@ -126,7 +126,7 @@ class TarjetaDebito(MedioPago):
         return Decimal("0.00")
 
     def validar(self, datos: dict[str, str]) -> bool:
-        return bool(datos.get("autorizacion", "").strip())
+        return True
 
 
 class TarjetaCredito(MedioPago):
@@ -142,7 +142,7 @@ class TarjetaCredito(MedioPago):
         return dinero(monto * self.recargo_por_cuota * max(0, self.cuotas - 1))
 
     def validar(self, datos: dict[str, str]) -> bool:
-        return 1 <= self.cuotas <= 12 and bool(datos.get("autorizacion", "").strip())
+        return 1 <= self.cuotas <= 12
 
     def mensaje_invalido(self) -> str:
         if not 1 <= self.cuotas <= 12:
@@ -151,7 +151,7 @@ class TarjetaCredito(MedioPago):
 
 
 class Transferencia(MedioPago):
-    """Transferencia: requiere registrar una referencia bancaria (P7)."""
+    """Transferencia: se cobra igual que el efectivo, sin datos extra ni recargo (P7)."""
 
     tipo = "TRANSFERENCIA"
 
@@ -159,7 +159,7 @@ class Transferencia(MedioPago):
         return Decimal("0.00")
 
     def validar(self, datos: dict[str, str]) -> bool:
-        return bool(datos.get("referencia", "").strip())
+        return True
 
 
 def crear_medio_pago(tipo: str, cuotas: int = 1) -> MedioPago:

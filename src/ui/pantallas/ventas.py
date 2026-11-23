@@ -45,7 +45,7 @@ class PantallaVentas(tk.Toplevel):
             (self.tab_venta, "Venta"),
             (self.tab_devolucion, "Devolución"),
             (self.tab_caja, "Caja"),
-            (self.tab_reporte, "Reporte R6"),
+            (self.tab_reporte, "Reporte de ventas"),
         ):
             self.tabs.add(panel, text=titulo)
         self._armar_tab_venta()
@@ -114,7 +114,6 @@ class PantallaVentas(tk.Toplevel):
         )
         self.medio_pago.current(0)
         self.monto_pago = tk.StringVar()
-        self.referencia_pago = tk.StringVar()
         self.cuotas_pago = tk.StringVar(value="1")
         pago_frame = ttk.Frame(panel)
         pago_frame.grid(row=7, column=1, sticky="ew")
@@ -123,10 +122,9 @@ class PantallaVentas(tk.Toplevel):
         ttk.Entry(pago_frame, textvariable=self.monto_pago, width=12).pack(side="left", padx=6)
         ttk.Label(pago_frame, text="Cuotas").pack(side="left")
         ttk.Spinbox(pago_frame, from_=1, to=12, textvariable=self.cuotas_pago, width=4).pack(side="left", padx=4)
-        ttk.Entry(pago_frame, textvariable=self.referencia_pago, width=18).pack(side="left", padx=4)
         ttk.Button(pago_frame, text="Agregar cobro", command=self._agregar_pago).pack(side="left", padx=4)
-        ttk.Label(panel, text="Medio / importe base / referencia").grid(row=7, column=0, sticky="w")
-        self.tabla_pagos = self._tabla(panel, 8, [("medio", "Medio", 160), ("monto", "Importe base", 130), ("referencia", "Referencia", 180)])
+        ttk.Label(panel, text="Medio / importe base").grid(row=7, column=0, sticky="w")
+        self.tabla_pagos = self._tabla(panel, 8, [("medio", "Medio", 160), ("monto", "Importe base", 130)])
         ttk.Button(panel, text="Quitar cobro", command=self._quitar_pago).grid(row=8, column=0, sticky="w")
         ttk.Button(panel, text="Confirmar venta", command=self._confirmar_venta).grid(
             row=9, column=1, sticky="e", pady=(8, 0)
@@ -200,20 +198,13 @@ class PantallaVentas(tk.Toplevel):
         try:
             medio = self.medio_pago.get()
             monto = Decimal(self.monto_pago.get()).quantize(Decimal("0.01"))
-            datos: dict[str, str] = {}
-            referencia = self.referencia_pago.get().strip()
-            if medio in ("DEBITO", "CREDITO"):
-                datos["autorizacion"] = referencia
-            elif medio == "TRANSFERENCIA":
-                datos["referencia"] = referencia
             cuotas = int(self.cuotas_pago.get()) if medio == "CREDITO" else 1
-            pago = PagoSolicitado(medio, monto, datos, cuotas)
+            pago = PagoSolicitado(medio, monto, {}, cuotas)
             self.pagos.append(pago)
             self.tabla_pagos.insert(
-                "", "end", values=(medio, f"${monto:.2f}", referencia or "-")
+                "", "end", values=(medio, f"${monto:.2f}")
             )
             self.monto_pago.set("")
-            self.referencia_pago.set("")
         except (ValueError, ArithmeticError) as error:
             self._error(f"Importe de cobro inválido: {error}")
 
@@ -472,7 +463,7 @@ class PantallaVentas(tk.Toplevel):
         contenido.add(self.grafico, weight=2)
         self._filas_reporte: list[FilaReporteVentas] = []
         agregar_botones_exportar(
-            filtros, self, "R6 – Ventas e ingresos por período, local y medio de pago",
+            filtros, self, "Ventas e ingresos por período, local y medio de pago",
             tablas=[("Ventas por sucursal y medio de pago", self.tabla_reporte)],
             grafico=lambda: GraficoReporte(
                 "Total cobrado por sucursal y medio de pago",
@@ -540,7 +531,7 @@ def abrir_ventas(padre: tk.Misc) -> None:
 
 def abrir_reporte_ventas(padre: tk.Misc) -> None:
     """Abre Ventas directamente en el reporte R6."""
-    PantallaVentas(padre, "Reporte R6")
+    PantallaVentas(padre, "Reporte de ventas")
 
 
 def abrir_devoluciones(padre: tk.Misc) -> None:

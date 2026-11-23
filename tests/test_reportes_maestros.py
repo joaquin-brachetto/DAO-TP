@@ -143,9 +143,8 @@ def vender(maestros, ventas):
 
     def registrar(sucursal, items: dict, dia: int, medio: str = "EFECTIVO", cuotas: int = 1) -> int:
         total = sum(precios[p] * c for p, c in items.items())
-        datos = {"autorizacion": "AUT-1"} if medio != "EFECTIVO" else {}
         return ventas.registrar_venta(
-            sucursal.id, items, [PagoSolicitado(medio, total, datos, cuotas=cuotas)],
+            sucursal.id, items, [PagoSolicitado(medio, total, {}, cuotas=cuotas)],
             vendedor="test", fecha_hora=datetime(2026, 10, dia, 12, 0),
         )
 

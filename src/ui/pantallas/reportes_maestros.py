@@ -50,7 +50,7 @@ class PantallaExistencias(tk.Toplevel, _FiltrosComunes):
 
     def __init__(self, padre: tk.Misc) -> None:
         super().__init__(padre)
-        self.title("R1 – Existencias actuales y stock mínimo")
+        self.title("Existencias actuales y stock mínimo")
         self.geometry("1100x720")
         stock_service = getattr(padre, "stock_service", None)
         self.reporte = ReporteExistencias(stock_service) if stock_service is not None else None
@@ -81,7 +81,7 @@ class PantallaExistencias(tk.Toplevel, _FiltrosComunes):
             leyenda="Barra: stock disponible   ·   Línea negra: stock mínimo   ·   Rojo con ⚠: en stock mínimo",
         )
         self.grafico.pack(fill="x", pady=(10, 0))
-        agregar_botones_exportar(barra, self, "R1 – Existencias actuales y stock mínimo",
+        agregar_botones_exportar(barra, self, "Existencias actuales y stock mínimo",
                                  tablas=[("Existencias por ubicación", self.grilla)],
                                  grafico=self.grafico, resumen=self.resumen)
 
@@ -133,7 +133,7 @@ class PantallaProductosVendidos(tk.Toplevel, _FiltrosComunes):
 
     def __init__(self, padre: tk.Misc) -> None:
         super().__init__(padre)
-        self.title("R2 – Productos más vendidos y margen")
+        self.title("Productos más vendidos y margen")
         self.geometry("1100x720")
         self.reporte = ReporteProductosVendidos()
 
@@ -167,7 +167,7 @@ class PantallaProductosVendidos(tk.Toplevel, _FiltrosComunes):
             leyenda="Rojo con ⚠: producto vendido a pérdida (margen negativo)",
         )
         self.grafico.pack(fill="x", pady=(10, 0))
-        agregar_botones_exportar(barra, self, "R2 – Productos más vendidos y margen",
+        agregar_botones_exportar(barra, self, "Productos más vendidos y margen",
                                  tablas=[("Ranking de productos", self.grilla)],
                                  grafico=self.grafico, resumen=self.resumen)
         self._consultar()
