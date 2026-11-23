@@ -81,13 +81,15 @@ def test_baja_y_reactivacion_de_proveedor(con_datos):
 @pytest.mark.parametrize("clave", ["r1", "r2", "r3", "r4", "r5", "r6"])
 def test_reportes_y_exportacion(con_datos, clave):
     reporte = con_datos.get(f"/api/reportes/{clave}").get_json()
-    assert reporte["titulo"].startswith(clave.upper())
+    assert not reporte["titulo"].startswith("R")  # sin «R1 – …»: el título dice qué se filtró
+    assert "todas las" in reporte["titulo"]
     assert reporte["secciones"]
     for formato, tipo in (("pdf", "application/pdf"), ("csv", "text/csv")):
         archivo = con_datos.get(f"/api/reportes/{clave}/exportar?formato={formato}")
         assert archivo.status_code == 200
         assert archivo.mimetype == tipo
         assert "attachment" in archivo.headers["Content-Disposition"]
+        assert f"filename={clave}_" not in archivo.headers["Content-Disposition"]
 
 
 def test_venta_sin_caja_abierta_responde_400(con_datos):
@@ -157,3 +159,27 @@ def test_necesidad_una_por_una(con_datos):
     detalle = next(o for o in con_datos.get("/api/ordenes").get_json() if o["id"] == orden["id"])
     assert detalle["necesidades"] == [necesidad]
     assert detalle["items"][0]["solicitada"] == 4
+
+
+def test_titulo_y_archivo_del_reporte_nombran_la_sucursal_filtrada(con_datos):
+    catalogo = con_datos.get("/api/catalogo").get_json()
+    sucursal = next(u for u in catalogo["ubicaciones"] if u["tipo"] == "SUCURSAL")
+
+    reporte = con_datos.get(f"/api/reportes/r3?ubicacion={sucursal['id']}").get_json()
+    archivo = con_datos.get(f"/api/reportes/r3/exportar?formato=csv&ubicacion={sucursal['id']}")
+
+    assert reporte["titulo"] == f"Movimientos y valorización del inventario en la {sucursal['nombre']}"
+    assert "filename=movimientos_y_valorizacion_del_inventario_en_la_sucursal_" in archivo.headers["Content-Disposition"]
+
+
+def test_nombre_de_archivo_sin_acentos_ni_simbolos():
+    from src.web.rutas_reportes import nombre_archivo
+
+    assert nombre_archivo("Tiempo promedio de tránsito desde el CD a todas las sucursales") == (
+        "tiempo_promedio_de_transito_desde_el_cd_a_todas_las_sucursales"
+    )
+
+
+def test_ventas_filtradas_por_medio_lo_dicen_en_el_titulo(con_datos):
+    reporte = con_datos.get("/api/reportes/r6?medio=DEBITO").get_json()
+    assert reporte["titulo"] == "Ventas por período y medio de pago en todas las sucursales, cobrado con débito"

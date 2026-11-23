@@ -254,8 +254,7 @@ const A = {
   menos(d){ const it = ui.cart.find(i=>i.producto_id===Number(d.id)); if (--it.cantidad<=0) ui.cart = ui.cart.filter(i=>i!==it); ui.pagos = []; },
   pago(){ const medio = val('p-medio'), monto = Number(val('p-monto')), cuotas = medio==='CREDITO' ? Number(val('p-cuotas')) : 1, resta = subtotal()-pagado();
     if (!(monto>0)) return err('El importe del pago debe ser mayor que cero.'); if (monto > resta + 0.001) return err(`El pago supera lo que falta cobrar (${$$(resta)}).`);
-    if (medio!=='EFECTIVO' && !val('p-ref')) return err(medio==='TRANSFERENCIA' ? 'Ingresá la referencia de la transferencia.' : 'Ingresá el número de autorización de la tarjeta.');
-    ui.pagos.push({medio, monto, cuotas, autorizacion: medio==='TRANSFERENCIA' ? '' : val('p-ref'), referencia: medio==='TRANSFERENCIA' ? val('p-ref') : ''}); },
+    ui.pagos.push({medio, monto, cuotas}); },
   quitarPago(d){ ui.pagos.splice(Number(d.i),1); },
   confirmar(){ if (!ui.cart.length) return err('Agregá al menos un producto.');
     return enviar(() => post('/api/ventas', {sucursal_id:sucVenta(), items:ui.cart, pagos:ui.pagos, cliente_id:F('ven','cli')||null, vendedor:F('ven','vendedor')}),
@@ -396,7 +395,7 @@ function vLogistica(){
     else if (r) { const falta = r.bultos.some(b=>b.estado==='RECIBIDO');
       det = `<div class="muted">Llegó el ${fh(r.recepcion.llegada)} · recibió ${esc(r.recepcion.recibido_por)}. Si el precinto llega completo y coincide con el del remito, el bulto queda verificado; si llega roto, incompleto o con otro número, se rechaza.</div>
       ${r.bultos.map(b=>`<div class="note" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between"><div style="flex:1 1 240px;min-width:0"><b>${esc(b.codigo)}</b> ${pill(b.estado_nombre)}<div>${bTxt(b)}</div><div class="muted">Precinto del remito: ${esc(b.precinto)}${b.control?` · leído: ${esc(b.control.precinto_leido)} (${b.control.integro?'completo':'roto o incompleto'})`:''}</div></div>
-        ${b.estado==='RECIBIDO' ? `<div class="ctl"><input class="in" id="lei-${b.id}" aria-label="Precinto leído en ${esc(b.codigo)}" placeholder="Precinto leído" value="${esc(b.precinto)}" style="width:150px"><select class="in" id="est-${b.id}" aria-label="Estado del precinto de ${esc(b.codigo)}"><option value="ok">Precinto completo</option><option value="roto">Precinto roto o incompleto</option></select><input class="in" id="obs-${b.id}" placeholder="Observación (opcional)" style="width:180px"><button class="btn p" data-a="controlar" data-id="${b.id}" data-rec="${r.recepcion.id}">Controlar</button></div>` : `<button class="btn s" data-a="verBulto" data-id="${b.id}">Ver trazabilidad</button>`}</div>`).join('')}
+        ${b.estado==='RECIBIDO' ? `<div class="ctl"><input class="in" id="lei-${b.id}" aria-label="Precinto leído en ${esc(b.codigo)}" placeholder="Precinto leído" value="${esc(b.precinto)}" style="width:150px"><select class="in" id="est-${b.id}" aria-label="Estado del precinto de ${esc(b.codigo)}"><option value="ok">Completo</option><option value="roto">Roto o incompleto</option></select><input class="in" id="obs-${b.id}" placeholder="Observación (opcional)" style="width:180px"><button class="btn p" data-a="controlar" data-id="${b.id}" data-rec="${r.recepcion.id}">Controlar</button></div>` : `<button class="btn s" data-a="verBulto" data-id="${b.id}">Ver trazabilidad</button>`}</div>`).join('')}
       <div class="ctl"><button class="btn p" data-a="cerrarRecepcion" data-rec="${r.recepcion.id}" ${falta?'disabled':''}>Cerrar recepción</button><span class="muted">Al cerrar se actualiza el stock: lo verificado pasa a disponible y lo rechazado a merma.</span></div>`; }
     cuerpo = `<section class="card"><div class="bar">${fSel('rec','suc','Sucursal',optSuc(true))}${r?fSel('rec','remito','Remito a recibir',rems.map(x=>[x.id, `${x.numero} · ${nomUbi(x.destino_id)} (${x.estado_nombre})`]), r.id):''}</div>
       ${r ? det : '<div class="note">No hay remitos en tránsito para recibir con ese filtro. Despachá uno desde Armado y despacho.</div>'}</section>`; }
@@ -436,7 +435,7 @@ function vVentas(){
       <div class="ctl"><div class="f"><label for="p-medio">Medio de pago</label><select class="in" id="p-medio" data-f="ven.medio">${opts(MEDIOS, medio)}</select></div>
         <div class="f"><label for="p-monto">Importe</label><input class="in" id="p-monto" type="number" min="0" step="0.01" value="${resta>0?resta:''}"></div>
         ${medio==='CREDITO'?`<div class="f"><label for="p-cuotas">Cuotas</label><select class="in" id="p-cuotas">${opts([1,3,6,12].map(c=>[String(c),String(c)]),'1')}</select></div>`:''}
-        ${medio!=='EFECTIVO'?`<div class="f"><label for="p-ref">${medio==='TRANSFERENCIA'?'Referencia bancaria':'N° de autorización'}</label><input class="in" id="p-ref"></div>`:''}</div>
+</div>
       <button class="btn" data-a="pago" ${resta>0?'':'disabled'}>Agregar pago</button>
       <div class="sum" style="border-top:1px solid var(--line);padding-top:12px"><span>Total a cobrar</span><span class="big">${$$(sub + ui.pagos.reduce((a,p)=>a+recargo(p),0))}</span></div>
       <button class="btn p" data-a="confirmar">Confirmar venta</button>

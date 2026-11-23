@@ -39,7 +39,7 @@ def registrar_venta():
             medio_pago=texto(p.get("medio")),
             monto=decimal(p.get("monto"), "Importe"),
             cuotas=entero(p.get("cuotas"), "Cuotas", opcional=True) or 1,
-            datos={"autorizacion": texto(p.get("autorizacion")), "referencia": texto(p.get("referencia"))},
+            datos={},
         )
         for p in datos.get("pagos") or []
     ]
